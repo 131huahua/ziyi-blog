@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}开放资源 · {{ cfg('site_name') }} 的博客{% endblock %}
+{% block content %}
+
+<!-- 标语区 -->
+<header class="max-w-4xl mx-auto px-6 pt-32 pb-10 w-full text-center">
+    <span class="text-[10px] font-mono font-bold tracking-[0.3em] text-emerald-600 dark:text-emerald-400 uppercase block mb-2">OPEN RESOURCES</span>
+    <h1 class="text-3xl md:text-5xl font-bold text-slate-900 dark:text-white mb-3">共享资源与工具包</h1>
+    <p class="text-xs text-gray-400 font-light">博主主动放出的公开文档、工程预设与工具，自由下载。</p>
+    <div class="w-8 h-[2px] bg-emerald-600/80 mx-auto rounded-full mt-6"></div>
+</header>
+
+<!-- 资源网格 -->
+<main class="max-w-5xl mx-auto px-6 pb-24 w-full">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for item in files %}
+        <div class="bg-white/90 dark:bg-[#131d17]/80 backdrop-blur-xl rounded-2xl p-5 border border-slate-200/80 dark:border-white/10 hover:border-emerald-500/40 transition duration-300 flex items-center justify-between group">
+            <div class="flex items-center space-x-4 min-w-0 pr-3">
+                <div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono font-bold text-xs flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
+                    {{ item.file_type }}
+                </div>
+                <div class="min-w-0">
+                    <h4 class="text-xs font-bold text-slate-800 dark:text-gray-100 truncate group-hover:text-emerald-500 transition">{{ item.original_name }}</h4>
+                    <div class="flex items-center space-x-3 text-[10px] text-gray-400 font-mono mt-1">
+                        <span>{{ item.file_size_formatted }}</span>
+                        <span>·</span>
+                        <span>{{ item.created_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                </div>
+            </div>
+            <a href="/storage/download/{{ item.id }}"
+               class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md border border-emerald-400/30 transition flex items-center space-x-1.5 flex-shrink-0 active:scale-95">
+                <span>⬇ 下载</span>
+            </a>
+        </div>
+        {% else %}
+        <div class="col-span-1 md:col-span-2 text-center py-16 text-xs text-gray-400 font-mono">
+            🍃 博主暂时还没有开放任何公共资源…
+        </div>
+        {% endfor %}
+    </div>
+</main>
+
+{% endblock %}

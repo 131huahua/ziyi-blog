@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}404 · 迷失在晨雾中 · {{ cfg('site_name') }} 的博客{% endblock %}
+{% block content %}
+<div class="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">
+    <p class="text-[10px] font-bold tracking-[0.4em] text-emerald-800/50 uppercase mb-4">404 — LOST IN THE MIST</p>
+    <h1 class="text-7xl md:text-9xl font-extrabold text-gray-900 mb-6 drop-shadow-sm">404</h1>
+    <p class="text-gray-500 font-light mb-8 max-w-sm leading-relaxed">
+        你走得太远，前方已被晨雾遮蔽。<br>这片森林里没有你要找的东西。
+    </p>
+    <a href="/" class="admin-btn-primary px-8">返回森林首页 ↗</a>
+</div>
+{% endblock %}

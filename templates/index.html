@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- 首屏视觉区（影院级：鼠标视差 + 晨雾呼吸 + 级联拉焦） -->
+<section id="heroSection" class="hero-full relative h-screen w-full flex flex-col justify-center items-center px-6 overflow-hidden select-none">
+
+    <!-- 视差层 A：全屏背景大图（鼠标微幅联动） -->
+    <div id="parallaxBg" class="absolute inset-0 bg-cover bg-center transition-transform duration-200 ease-out scale-105"
+         style="background-image: url('{{ cfg('hero_bg_image') }}');"></div>
+
+    <!-- 暗化遮罩（底部渐变融入页面白） -->
+    <div class="absolute inset-0 bg-gradient-to-b from-white/85 via-white/15 to-[#faf8f5]"></div>
+
+    <!-- 视差层 B：呼吸晨雾柔光 -->
+    <div class="ambient-mist-layer absolute w-[600px] h-[600px] bg-emerald-500/15 rounded-full blur-[140px] pointer-events-none"></div>
+
+    <!-- Hero 主体文案（级联错落拉焦涌现） -->
+    <div class="relative z-10 max-w-4xl mx-auto text-center space-y-6">
+        <div class="hero-cascade-item" style="transition-delay:100ms">
+            <span class="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono tracking-[0.3em] text-emerald-800 uppercase backdrop-blur-md">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>MISTY FOREST &amp; SILENCE</span>
+            </span>
+        </div>
+
+        <h1 id="heroTitle" class="hero-cascade-item hero-glow-text text-4xl md:text-6xl font-semibold tracking-tight leading-tight" style="transition-delay:250ms">
+            {{ cfg('hero_title') }}
+        </h1>
+
+        <p class="hero-cascade-item text-black/70 text-base md:text-lg font-extralight tracking-wider max-w-xl mx-auto leading-relaxed" style="transition-delay:400ms">
+            {{ cfg('hero_subtitle') }}
+        </p>
+
+        <div class="hero-cascade-item pt-4" style="transition-delay:550ms">
+            <a href="#main-content" class="inline-flex items-center space-x-2 px-8 py-3.5 rounded-full bg-emerald-800/80 hover:bg-emerald-600 text-white font-bold text-xs shadow-[0_0_30px_rgba(16,185,129,0.3)] border border-emerald-400/30 transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-md">
+                <span>探索文章与日志</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+            </a>
+        </div>
+    </div>
+
+    <!-- 底部呼吸下跳箭头 -->
+    <a href="#main-content" class="animated-scroll-arrow absolute bottom-8 z-10 text-white/50 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"></path></svg>
+    </a>
+</section>
+
+<!-- ========== 主内容区 (晨雾调性重构：7:5 黄金布局) ========== -->
+<main class="relative z-10 max-w-6xl mx-auto px-6 pt-24 pb-28">
+
+    <!-- 背景隐藏的晨雾流体微光 -->
+    <div class="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-100/40 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute bottom-1/3 -right-20 w-96 h-96 bg-teal-100/30 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- 板块标题 -->
+    <div class="flex flex-col items-center mb-16">
+        <span class="text-[11px] font-bold tracking-[0.3em] text-emerald-700/70 uppercase mb-3 block">
+            SELECTED WRITINGS &amp; MOMENTS
+        </span>
+        <h3 class="text-2xl md:text-4xl font-bold text-slate-900 tracking-tight">近期文章与动态</h3>
+        <div class="w-8 h-[2px] bg-emerald-600/80 mt-5 rounded-full"></div>
+    </div>
+
+    {% if items %}
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+
+        <!-- 左 7 列：精选大文章卡片 -->
+        <div class="lg:col-span-7 flex flex-col space-y-8">
+            <div class="reveal" style="transition-delay:0s">
+            <a href="/post/{{ items[0].post.id }}" class="glass-shine-card group relative block bg-white/80 backdrop-blur-md border border-slate-200/80 rounded-3xl p-4 md:p-5 shadow-sm hover:shadow-2xl hover:shadow-emerald-900/5 hover:-translate-y-1.5 transition-all duration-500">
+                <div class="aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-100 mb-5 relative">
+                    {% if items[0].post.cover_image %}
+                    <img src="{{ items[0].post.cover_image }}" alt="{{ items[0].post.title }}"
+                         class="w-full h-full object-cover group-hover:scale-105 transition duration-700 ease-out">
+                    {% endif %}
+                    <span class="cover-badge absolute top-3 left-3 bg-white/80 backdrop-blur-md text-emerald-900 text-[11px] font-bold px-3 py-1 rounded-full border border-white/60 shadow-sm">
+                        {{ items[0].category }}
+                    </span>
+                </div>
+                <div class="px-2 pb-2">
+                    <div class="flex items-center space-x-3 text-xs text-gray-400 font-mono mb-2">
+                        <span>{{ items[0].post.created_at.strftime('%Y-%m-%d') }}</span>
+                        <span>·</span>
+                        <span>{{ items[0].read_min }} min read</span>
+                    </div>
+                    <h4 class="text-xl md:text-2xl font-bold text-slate-900 mb-3 group-hover:text-emerald-700 transition-colors">
+                        {{ items[0].post.title }}
+                    </h4>
+                    <p class="text-slate-500 font-light text-xs md:text-sm leading-relaxed line-clamp-3">
+                        {{ items[0].summary }}
+                    </p>
+                    <div class="mt-5 pt-4 border-t border-slate-200 flex justify-between items-center text-xs font-semibold text-emerald-700">
+                        <span class="group-hover:translate-x-1 transition-transform inline-flex items-center">
+                            阅读全文 <span class="ml-1">↗</span>
+                        </span>
+                        <span class="text-gray-300 font-normal"># {{ items[0].post.tags }}</span>
+                    </div>
+                </div>
+            </a>
+            </div>
+        </div>
+
+        <!-- 右 5 列：状态 Profile + 最新说说 + 第二文章 -->
+        <div class="lg:col-span-5 flex flex-col space-y-6">
+
+            <!-- 1. 个人当前状态卡片 -->
+            <div class="reveal" style="transition-delay:.1s">
+            <div class="bg-gradient-to-br from-emerald-900/90 to-slate-900 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl"></div>
+                <div class="flex items-center space-x-4 mb-4 relative z-10">
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-bold text-lg text-emerald-200">
+                        Z
+                    </div>
+                    <div>
+                        <h5 class="font-bold text-base tracking-wide">ZIYI.</h5>
+                        <p class="text-xs text-emerald-200/70 font-light">全栈开发者 &amp; UI 探索者</p>
+                    </div>
+                </div>
+                <p class="text-xs text-white/80 font-light leading-relaxed mb-4 relative z-10">
+                    "雾气消散之时，代码便有了清晰的轮廓。"
+                </p>
+                <div class="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-emerald-200 border border-white/10">
+                    <span class="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span>
+                    <span>正在构建：FastAPI Blog v2.0</span>
+                </div>
+            </div>
+            </div>
+
+            <!-- 2. 最新说说 -->
+            {% if latest_moment %}
+            <div class="reveal" style="transition-delay:.2s">
+            <a href="/post/{{ latest_moment.post.id }}" class="glass-shine-card group block bg-white/80 backdrop-blur-md border border-slate-200/80 p-6 rounded-3xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                        💬 说说
+                    </span>
+                    <span class="text-xs text-gray-400 font-mono">{{ latest_moment.post.created_at.strftime('%m-%d %H:%M') }}</span>
+                </div>
+                <p class="text-slate-700 font-light text-xs md:text-sm leading-relaxed mb-4">
+                    "{{ latest_moment.summary }}"
+                </p>
+                <div class="text-[11px] text-gray-400 flex justify-between items-center pt-2 border-t border-gray-100">
+                    <span>{{ latest_moment.category }}</span>
+                    <span class="hover:text-emerald-800 transition"># {{ latest_moment.post.tags }}</span>
+                </div>
+            </a>
+            </div>
+            {% endif %}
+
+            <!-- 3. 第二篇文章 -->
+            {% if items[1] %}
+            <div class="reveal" style="transition-delay:.3s">
+            <a href="/post/{{ items[1].post.id }}" class="glass-shine-card group block bg-white/80 backdrop-blur-md border border-slate-200/80 p-6 rounded-3xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-[11px] font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100">
+                        {{ items[1].category }}
+                    </span>
+                    <span class="text-xs text-gray-400 font-mono">{{ items[1].post.created_at.strftime('%m-%d') }}</span>
+                </div>
+                <h5 class="text-sm font-bold text-slate-900 mb-2 group-hover:text-emerald-700 transition-colors">
+                    {{ items[1].post.title }}
+                </h5>
+                <p class="text-slate-500 font-light text-xs leading-relaxed line-clamp-2">
+                    {{ items[1].summary }}
+                </p>
+            </a>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+    {% else %}
+    <p class="text-center text-gray-400 font-light">还没有文章，去 <a href="/admin" class="text-emerald-800 underline">后台</a> 写第一篇吧。</p>
+    {% endif %}
+</main>
+
+<!-- ========== 拓展板块 1：数字花园画廊 ========== -->
+{% if gallery %}
+<section class="relative z-10 max-w-6xl mx-auto px-6 pt-4 pb-20">
+    <div class="flex items-center justify-between mb-10">
+        <div>
+            <span class="text-[10px] font-bold tracking-[0.3em] text-emerald-700/70 uppercase block mb-1">
+                DIGITAL GARDEN
+            </span>
+            <h4 class="text-xl md:text-2xl font-bold text-slate-900">视觉与灵感碎片</h4>
+        </div>
+        <a href="/notes" class="text-xs font-semibold text-emerald-700 hover:underline">查看更多 ↗</a>
+    </div>
+
+    <!-- 响应式灵感画廊 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {% for g in gallery %}
+        <div class="reveal glass-shine-card group relative rounded-2xl overflow-hidden aspect-square bg-slate-100 cursor-pointer shadow-sm"
+             style="transition-delay: {{ loop.index0 * 90 }}ms">
+            <img src="{{ g.cover }}" alt="{{ g.title }}" loading="lazy"
+                 class="w-full h-full object-cover group-hover:scale-110 transition duration-700 ease-out">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4 flex flex-col justify-end">
+                <span class="text-[10px] text-emerald-300 font-mono">{{ g.date }}</span>
+                <span class="text-xs font-bold text-white">{{ g.title }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<!-- ========== 拓展板块 2：技术栈与工具箱 ========== -->
+<section class="relative z-10 max-w-6xl mx-auto px-6 py-12 border-t border-gray-200/60">
+    <div class="text-center mb-8">
+        <span class="text-[10px] font-bold tracking-[0.3em] text-emerald-700/70 uppercase block mb-1">
+            STACK &amp; TOOLS
+        </span>
+        <h4 class="text-lg font-bold text-slate-900">博客构建技术栈与日常生产力</h4>
+    </div>
+
+    <!-- 交互式技术胶囊 -->
+    <div class="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto text-xs font-medium text-slate-600">
+        <span class="px-4 py-2 rounded-full bg-white/80 border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition cursor-default">🐍 Python / FastAPI</span>
+        <span class="px-4 py-2 rounded-full bg-white/80 border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition cursor-default">🎨 Tailwind CSS</span>
+        <span class="px-4 py-2 rounded-full bg-white/80 border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition cursor-default">📄 Jinja2 SSR</span>
+        <span class="px-4 py-2 rounded-full bg-white/80 border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition cursor-default">🗄️ SQLModel / SQLite</span>
+        <span class="px-4 py-2 rounded-full bg-white/80 border border-slate-200 shadow-sm hover:border-emerald-500 hover:text-emerald-700 transition cursor-default">✨ View Transitions API</span>
+    </div>
+</section>
+
+<!-- ========== 拓展板块 3：极简订阅面板 ========== -->
+<section class="relative z-10 max-w-4xl mx-auto px-6 my-16">
+    <div class="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-900 rounded-3xl p-8 md:p-12 text-center text-white relative overflow-hidden shadow-2xl">
+        <!-- 晨雾氛围微光背景 -->
+        <div class="absolute -top-12 -left-12 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10">
+            <h3 class="text-2xl md:text-3xl font-bold mb-3 tracking-tight">保持联络与订阅更新</h3>
+            <p class="text-emerald-200/70 font-light text-xs md:text-sm max-w-md mx-auto mb-8 leading-relaxed">
+                当有新的技术文章或思考随笔发布时，第一时间推送到你的邮箱。不发垃圾邮件。
+            </p>
+
+            <!-- 订阅输入框（后端未接，先做交互反馈） -->
+            <form class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+                  onsubmit="event.preventDefault(); var b=this.querySelector('button'); b.textContent='✓ 已收到，订阅功能开发中'; b.disabled=true;">
+                <input type="email" placeholder="your_email@domain.com"
+                       class="px-5 py-3 rounded-full bg-white/10 border border-white/20 text-xs text-white placeholder-white/40 focus:outline-none focus:border-emerald-400 focus:bg-white/20 flex-grow transition">
+                <button type="submit" class="px-7 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition duration-300 shadow-lg">
+                    订阅更新
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

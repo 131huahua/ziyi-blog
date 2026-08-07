@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} · {{ cfg('site_name') }} 的博客{% endblock %}
+{% block meta_description %}{{ seo_summary }}{% endblock %}
+{% block og_title %}{{ post.title }}{% endblock %}
+{% block og_description %}{{ seo_summary }}{% endblock %}
+{% block og_image %}{{ post.cover_image or cfg('hero_bg_image') }}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block head_extra %}
+<!-- Prism.js 代码高亮（夜间主题） -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrownight.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+{% endblock %}
+{% block content %}
+
+<!-- 1. 顶部阅读进度条 -->
+<div class="fixed top-0 left-0 w-full h-1 bg-gray-100 z-50">
+    <div id="progress-bar" class="h-full bg-emerald-600 w-0"></div>
+</div>
+
+<!-- 2. 文章 Hero 区 -->
+<header class="max-w-4xl mx-auto px-6 pt-32 pb-10">
+    <div class="flex items-center space-x-3 mb-4">
+        <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-full">{{ category }}</span>
+        <span class="text-xs text-gray-400 font-mono">{{ post.created_at.strftime('%Y-%m-%d') }}</span>
+    </div>
+
+    <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 leading-tight mb-8">
+        {{ post.title }}
+    </h1>
+
+    {% if post.cover_image %}
+    <div class="w-full aspect-[21/9] rounded-3xl overflow-hidden shadow-lg mb-12">
+        <img src="{{ post.cover_image }}" alt="Cover" class="w-full h-full object-cover">
+    </div>
+    {% endif %}
+</header>
+
+<!-- 3. 正文 + 侧边目录 -->
+<main class="max-w-6xl mx-auto px-6 pb-24">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+
+        <!-- 文章正文 -->
+        <article class="lg:col-span-8 article-content">
+            {{ content_html | safe }}
+        </article>
+
+        <!-- 右侧：液态玻璃目录 (桌面端固定) -->
+        <aside class="hidden lg:block lg:col-span-4">
+            {% if toc_tokens %}
+            <div class="sticky top-24 glass-toc p-6 rounded-3xl shadow-sm">
+                <h4 class="text-xs font-bold tracking-[0.2em] text-gray-400 uppercase mb-4">TABLE OF CONTENTS</h4>
+                <nav id="tocNav" class="space-y-2 text-sm font-light text-gray-500">
+                    {% macro render_toc(tokens) %}
+                        {% for t in tokens %}
+                        <a href="#{{ t.id }}" class="toc-link block hover:text-gray-900 transition hover:translate-x-1 duration-200 {% if t.level > 2 %}pl-4{% endif %}">{{ t.name }}</a>
+                        {% if t.children %}{{ render_toc(t.children) }}{% endif %}
+                        {% endfor %}
+                    {% endmacro %}
+                    {{ render_toc(toc_tokens) }}
+                </nav>
+            </div>
+            {% endif %}
+        </aside>
+
+    </div>
+
+    <div class="max-w-4xl mx-auto mt-16 flex justify-between">
+        <a class="text-sm text-slate-500 hover:text-emerald-700 transition" href="/articles">← 返回文章列表</a>
+        {% if admin %}<a class="text-sm text-slate-500 hover:text-emerald-700 transition" href="/admin/edit/{{ post.id }}">编辑</a>{% endif %}
+    </div>
+</main>
+
+<!-- 评论区 -->
+<section id="comments" class="max-w-4xl mx-auto px-6 pb-24">
+    <div class="glass-panel rounded-3xl p-6 md:p-8">
+        <h4 class="text-lg font-bold text-slate-900 mb-6 flex items-center">
+            <span class="w-2 h-2 rounded-full bg-emerald-600 mr-2"></span>
+            评论 <span class="text-xs font-normal text-gray-400 ml-2">{{ comments|length }} 条</span>
+        </h4>
+
+        <!-- 发表评论 -->
+        <form method="post" action="/post/{{ post.id }}/comment" class="space-y-3 mb-8">
+            <input type="text" name="name" placeholder="你的昵称（选填）" maxlength="30"
+                   class="w-full md:w-64 px-4 py-2.5 text-xs bg-white/80 border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-800 transition">
+            <textarea name="content" rows="3" required maxlength="1000" placeholder="写下你的想法…"
+                      class="w-full px-4 py-3 text-sm bg-white/80 border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-800 transition leading-relaxed"></textarea>
+            <div class="flex justify-end">
+                <button type="submit" class="admin-btn-primary px-8 py-2.5 text-xs">发表评论</button>
+            </div>
+        </form>
+
+        <!-- 评论列表 -->
+        <div class="space-y-4">
+            {% for c in comments %}
+            <div class="bg-white/80 border border-slate-200 rounded-2xl p-5">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-bold text-slate-900 flex items-center">
+                        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center mr-2">{{ c.name[0] }}</span>
+                        {{ c.name }}
+                    </span>
+                    <span class="text-[11px] text-gray-400 font-mono">{{ c.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                <p class="text-sm text-slate-600 font-light leading-relaxed">{{ c.content }}</p>
+            </div>
+            {% else %}
+            <p class="text-center text-gray-400 text-xs font-light py-8">还没有评论，来抢沙发～</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- 代码块一键复制（Prism 高亮后） -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.article-content pre code').forEach((codeBlock) => {
+            const pre = codeBlock.parentNode;
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn absolute top-3 right-3 text-[10px] bg-white/10 hover:bg-white/20 text-white/70 px-2 py-1 rounded-md transition backdrop-blur-md';
+            copyBtn.innerText = '复制';
+            pre.style.position = 'relative';
+            pre.appendChild(copyBtn);
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(codeBlock.innerText).then(() => {
+                    copyBtn.innerText = '已复制 ✓';
+                    setTimeout(() => { copyBtn.innerText = '复制'; }, 2000);
+                });
+            });
+        });
+    });
+</script>
+
+{% endblock %}

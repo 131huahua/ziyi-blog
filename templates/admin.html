@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}后台管理 · ZIYI 的博客{% endblock %}
+{% block content %}
+
+{% if not logged_in %}
+<!-- ========== 登录页 ========== -->
+<div class="admin-login-wrap reveal" hx-boost="false">
+    <div class="admin-login-card">
+        <div class="flex items-center justify-center space-x-2 mb-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.7)]"></span>
+            <span class="text-2xl font-bold tracking-widest text-gray-900">{{ cfg('site_name') }}</span>
+        </div>
+        <p class="text-center text-xs text-gray-400 tracking-[0.3em] uppercase mb-8">Admin Console</p>
+
+        {% if error %}
+        <p class="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 mb-5 text-center">{{ error }}</p>
+        {% endif %}
+
+        <form method="post" action="/admin/login" class="space-y-5">
+            <div>
+                <label class="admin-label">用户名</label>
+                <input type="text" name="username" required placeholder="admin" class="admin-input">
+            </div>
+            <div>
+                <label class="admin-label">密码</label>
+                <input type="password" name="password" required placeholder="••••••••" class="admin-input">
+            </div>
+            <button type="submit" class="admin-btn-primary w-full">登 录</button>
+        </form>
+        <p class="text-center text-[11px] text-gray-300 mt-6">默认账号 admin / admin123 · 上线前请修改</p>
+    </div>
+</div>
+
+{% else %}
+<div class="max-w-6xl mx-auto px-6 pt-28 pb-20" hx-boost="false">
+    <!-- 顶部操作栏 -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+            <span class="text-[10px] font-bold tracking-[0.3em] text-emerald-800/50 uppercase block mb-1">DASHBOARD</span>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900">后台控制台</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <a href="/" target="_blank" class="admin-btn-ghost">预览前台 ↗</a>
+            <a class="admin-btn-primary" href="/admin/new">＋ 写文章</a>
+            <form method="post" action="/admin/logout">
+                <button class="admin-btn-ghost" type="submit">退出登录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tab 切换（手机端可横滑） -->
+    <div class="flex space-x-1.5 bg-gray-200/60 p-1 rounded-2xl max-w-full md:max-w-xl mb-6 md:mb-8 text-xs font-medium overflow-x-auto">
+        <button onclick="switchTab('posts')" id="tab-btn-posts" class="flex-1 min-w-[100px] py-2.5 rounded-xl text-gray-600 transition admin-tab-active">📄 文章管理</button>
+        <button onclick="switchTab('site-settings')" id="tab-btn-site-settings" class="flex-1 min-w-[110px] py-2.5 rounded-xl text-gray-600 transition">⚙️ 站点设置</button>
+        <button onclick="switchTab('cloud')" id="tab-btn-cloud" class="flex-1 min-w-[100px] py-2.5 rounded-xl text-gray-600 transition">📦 私人网盘</button>
+    </div>
+
+    <!-- Tab 1：文章管理 -->
+    <div id="tab-posts" class="tab-content">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6">
+            <div class="admin-stat">
+                <span class="admin-stat-num">{{ stats.total }}</span>
+                <span class="admin-stat-label">全部内容</span>
+            </div>
+            <div class="admin-stat">
+                <span class="admin-stat-num">{{ stats.moments }}</span>
+                <span class="admin-stat-label">💬 说说</span>
+            </div>
+            <div class="admin-stat">
+                <span class="admin-stat-num">{{ stats.notes }}</span>
+                <span class="admin-stat-label">✍️ 随笔</span>
+            </div>
+        </div>
+
+        <!-- 手机端卡片流（sm 以下） -->
+        <div class="block sm:hidden space-y-3">
+            {% for p in posts %}
+            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                <div class="flex items-center space-x-3 min-w-0 pr-2">
+                    {% if p.cover_image %}
+                    <img src="{{ p.cover_image }}" class="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-gray-100 border border-gray-100">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 text-[10px] flex-shrink-0">无图</div>
+                    {% endif %}
+                    <div class="min-w-0">
+                        <a href="/post/{{ p.id }}" class="text-xs font-bold text-gray-900 truncate block mb-1">{{ p.title }}</a>
+                        <span class="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">{{ p.tags.split(',')[0] if p.tags else '未分类' }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <a href="/post/{{ p.id }}" class="admin-icon-btn" title="查看">👁</a>
+                    <a href="/admin/edit/{{ p.id }}" class="admin-icon-btn" title="编辑">✏️</a>
+                    <form method="post" action="/admin/delete/{{ p.id }}" onsubmit="return confirm('确定删除《{{ p.title }}》？')">
+                        <button type="submit" class="admin-icon-btn hover:bg-red-50 hover:text-red-600" title="删除">🗑</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-center text-gray-400 font-light py-10 text-xs">🌱 还没有文章</p>
+            {% endfor %}
+        </div>
+
+        <!-- 桌面端表格（sm 以上） -->
+        <div class="hidden sm:block admin-panel">
+            {% if posts %}
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider text-gray-400">
+                        <th class="admin-th">封面</th>
+                        <th class="admin-th">标题 / 标签</th>
+                        <th class="admin-th hidden md:table-cell">分类</th>
+                        <th class="admin-th hidden sm:table-cell">时间</th>
+                        <th class="admin-th text-right">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in posts %}
+                    <tr class="admin-tr group">
+                        <td class="admin-td">
+                            {% if p.cover_image %}
+                            <img src="{{ p.cover_image }}" alt="" class="w-14 h-10 object-cover rounded-lg border border-gray-100 shadow-sm">
+                            {% else %}
+                            <div class="w-14 h-10 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 text-[10px]">无图</div>
+                            {% endif %}
+                        </td>
+                        <td class="admin-td">
+                            <a href="/post/{{ p.id }}" class="font-semibold text-gray-900 hover:text-emerald-800 transition block leading-snug">{{ p.title }}</a>
+                            <span class="text-[11px] text-gray-400 mt-1 block"># {{ p.tags or '未分类' }}</span>
+                        </td>
+                        <td class="admin-td hidden md:table-cell">
+                            <span class="admin-pill">{{ p.tags.split(',')[0] if p.tags else '未分类' }}</span>
+                        </td>
+                        <td class="admin-td hidden sm:table-cell text-gray-400 text-xs font-mono">{{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="admin-td">
+                            <div class="flex items-center justify-end space-x-2">
+                                <a href="/post/{{ p.id }}" class="admin-icon-btn" title="查看">👁</a>
+                                <a href="/admin/edit/{{ p.id }}" class="admin-icon-btn" title="编辑">✏️</a>
+                                <form method="post" action="/admin/delete/{{ p.id }}" onsubmit="return confirm('确定删除《{{ p.title }}》？')">
+                                    <button type="submit" class="admin-icon-btn hover:bg-red-50 hover:text-red-600" title="删除">🗑</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="py-20 text-center">
+                <p class="text-4xl mb-4">🌱</p>
+                <p class="text-gray-400 font-light">还没有文章，点击右上角「＋ 写文章」开始创作。</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tab 2：站点与全网设置 -->
+    <div id="tab-site-settings" class="tab-content hidden">
+        <form action="/admin/config/update" method="POST" enctype="multipart/form-data" class="space-y-8">
+            <!-- 基础信息 -->
+            <div class="admin-panel p-8">
+                <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-emerald-600 mr-2"></span>基础信息
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="admin-label">站点名称（Logo / 标题）</label>
+                        <input type="text" name="site_name" value="{{ config.site_name }}" class="admin-input">
+                    </div>
+                    <div>
+                        <label class="admin-label">GitHub 链接</label>
+                        <input type="text" name="github_url" value="{{ config.github_url }}" class="admin-input">
+                    </div>
+                    <div>
+                        <label class="admin-label">背景音乐 URL（本地 /static/audio/ 或在线直链）</label>
+                        <input type="text" name="bgm_url" value="{{ config.bgm_url }}" class="admin-input">
+                    </div>
+                    <div>
+                        <label class="admin-label">音乐标题</label>
+                        <input type="text" name="bgm_title" value="{{ config.bgm_title }}" class="admin-input">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="admin-label">歌词 .lrc 地址（留空不显示歌词，如 /static/audio/xxx.lrc）</label>
+                        <input type="text" name="bgm_lyric" value="{{ config.bgm_lyric }}" class="admin-input" placeholder="/static/audio/xxx.lrc">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 首页 Hero 配置 -->
+            <div class="admin-panel p-8">
+                <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-emerald-600 mr-2"></span>首页（Hero 区域）配置
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="md:col-span-2">
+                        <label class="admin-label">首页大标题</label>
+                        <input type="text" name="hero_title" value="{{ config.hero_title }}" class="admin-input">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="admin-label">首页副标题 / 描述</label>
+                        <textarea name="hero_subtitle" rows="2" class="admin-input">{{ config.hero_subtitle }}</textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="admin-label">更换首页全屏背景图</label>
+                        <input type="file" name="hero_bg_file" accept="image/*" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-800 hover:file:bg-emerald-100 transition">
+                        <p class="text-[11px] text-gray-400 mt-1.5">当前：{{ config.hero_bg_image }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关于页配置 -->
+            <div class="admin-panel p-8">
+                <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-teal-600 mr-2"></span>关于界面个人配置
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="admin-label">个人称呼 / Title</label>
+                        <input type="text" name="about_title" value="{{ config.about_title }}" class="admin-input">
+                    </div>
+                    <div>
+                        <label class="admin-label">更换头像 / 照片</label>
+                        <input type="file" name="about_avatar_file" accept="image/*" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-800 hover:file:bg-teal-100 transition">
+                        <p class="text-[11px] text-gray-400 mt-1.5">当前：{{ config.about_avatar }}</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="admin-label">个人介绍 / Bio（支持 Markdown）</label>
+                        <textarea name="about_bio" rows="5" class="admin-input">{{ config.about_bio }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="submit" class="admin-btn-primary w-full md:w-auto px-10">保存全部配置修改</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 3：私人网盘 -->
+    <div id="tab-cloud" class="tab-content hidden">
+        <!-- 上传卡片 -->
+        <div class="admin-panel p-6 md:p-8 mb-6">
+            <h3 class="text-base font-bold text-gray-900 mb-4 flex items-center">
+                <span class="w-2 h-2 rounded-full bg-emerald-600 mr-2"></span>上传文件到私人备份库
+            </h3>
+            <form action="/admin/storage/upload" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-4">
+                <input type="file" name="file" required
+                       class="w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-800 hover:file:bg-emerald-100 transition">
+                <button type="submit" class="w-full sm:w-auto px-6 py-2.5 admin-btn-primary flex-shrink-0">📤 立即上传备份</button>
+            </form>
+            <p class="text-[11px] text-gray-400 mt-3">支持任意文件类型；上传后生成直链可复制分享（下载链接公开，上传/删除需登录后台）</p>
+        </div>
+
+        <!-- 文件列表 -->
+        <div class="admin-panel p-6 md:p-8">
+            <h3 class="text-sm font-bold text-gray-900 mb-4">已存储的文件（{{ cloud_files|length }}）</h3>
+            <div class="space-y-3">
+                {% for item in cloud_files %}
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-gray-50/80 border border-gray-100 hover:bg-gray-100/50 transition gap-3">
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100/60 text-emerald-800 font-bold text-xs flex items-center justify-center flex-shrink-0 font-mono uppercase">{{ item.file_type }}</div>
+                        <div class="min-w-0">
+                            <div class="flex items-center space-x-2">
+                                <h5 class="text-xs font-bold text-gray-900 truncate">{{ item.original_name }}</h5>
+                                {% if item.is_public %}
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex-shrink-0">🌐 前台公开</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-200 text-gray-600 flex-shrink-0">🔒 个人私密</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center space-x-3 text-[10px] text-gray-400 font-mono mt-0.5">
+                                <span>{{ item.file_size_formatted }}</span>
+                                <span>·</span>
+                                <span>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 self-end sm:self-auto flex-shrink-0">
+                        <!-- 公开/私密切换 -->
+                        <form action="/admin/storage/toggle-public/{{ item.id }}" method="POST">
+                            <button type="submit" class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition shadow-sm {% if item.is_public %}bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 {% else %}bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100{% endif %}">
+                                {% if item.is_public %}🔒 改为私密{% else %}🌐 放出前台{% endif %}
+                            </button>
+                        </form>
+                        <button onclick="copyFileUrl('/storage/download/{{ item.id }}')"
+                                class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-[11px] font-medium text-gray-600 hover:text-emerald-800 transition shadow-sm">🔗 复制链接</button>
+                        <a href="/storage/download/{{ item.id }}"
+                           class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-100 text-[11px] font-bold hover:bg-emerald-100 transition">⬇ 下载</a>
+                        <form action="/admin/storage/delete/{{ item.id }}" method="POST" onsubmit="return confirm('确定从磁盘彻底删除此文件吗？')">
+                            <button type="submit" class="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 transition">🗑</button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-10 text-xs text-gray-400">网盘空空如也，随时上传文件进行云端备份…</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach((el) => el.classList.add('hidden'));
+        document.querySelectorAll('[id^="tab-btn-"]').forEach((el) => el.classList.remove('admin-tab-active'));
+        document.getElementById('tab-' + tabName).classList.remove('hidden');
+        document.getElementById('tab-btn-' + tabName).classList.add('admin-tab-active');
+    }
+    // 复制文件直链
+    function copyFileUrl(path) {
+        const fullUrl = window.location.origin + path;
+        navigator.clipboard.writeText(fullUrl).then(() => {
+            alert('文件直链已复制：\n' + fullUrl);
+        });
+    }
+    // 上传/删除后自动切回网盘 Tab（?tab=cloud）
+    (function () {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('tab') === 'cloud') switchTab('cloud');
+    })();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}随笔 · ZIYI 的博客{% endblock %}
+{% block content %}
+
+<!-- 页面 Header -->
+<header class="max-w-4xl mx-auto px-6 pt-32 pb-10 w-full text-center">
+    <span class="text-xs font-bold tracking-[0.25em] text-gray-400 uppercase mb-3 block">MOMENTS & THOUGHTS</span>
+    <h1 class="text-3xl md:text-5xl font-bold text-slate-900 mb-6">日常随笔</h1>
+    <p class="text-gray-400 font-light text-sm max-w-md mx-auto leading-relaxed">
+        记录代码之外的日常碎片、灵感与生活感悟。
+    </p>
+    <div class="w-8 h-1 bg-emerald-600 mx-auto rounded-full mt-8"></div>
+</header>
+
+<!-- 时间轴主区域 -->
+<main class="max-w-4xl mx-auto px-6 pb-24 w-full relative">
+    <!-- 贯穿时间轴线（手机靠左，桌面居中） -->
+    <div class="absolute left-4 md:left-1/2 top-10 bottom-10 w-0.5 bg-gradient-to-b from-emerald-500/30 via-emerald-500/10 to-transparent md:-translate-x-1/2"></div>
+
+    <div class="space-y-14 relative">
+        {% for it in items %}
+        {% set n = loop.index0 % 3 %}
+        <div class="reveal-item relative md:flex {% if loop.index is odd %}md:justify-start{% else %}md:justify-end{% endif %}"
+             style="transition-delay: {{ loop.index0 * 120 }}ms;">
+
+            <!-- 时间轴发光节点 -->
+            <div class="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-4 border-white shadow-md z-10 mt-6 {% if n == 0 %}bg-indigo-500{% elif n == 1 %}bg-emerald-400{% else %}bg-amber-400{% endif %}"></div>
+
+            <!-- 内容卡片 -->
+            <div class="w-full pl-10 md:pl-0 {% if loop.index is odd %}md:w-[calc(50%-2.5rem)]{% else %}md:w-[calc(50%-2.5rem)] md:ml-auto{% endif %} relative">
+                <!-- 背景液态微光 -->
+                <div class="liquid-glow absolute -inset-2 rounded-3xl -z-10 {% if n == 0 %}bg-gradient-to-r from-indigo-100 to-purple-100 {% elif n == 1 %}bg-gradient-to-r from-emerald-100 to-teal-100 {% else %}bg-gradient-to-r from-amber-100 to-orange-100 {% endif %}"></div>
+
+                <div class="glass-note-card p-6 md:p-8 rounded-3xl border border-slate-200/80 hover:border-emerald-500/40 transition-all duration-300">
+                    <!-- 标签 + 时间 -->
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xs font-bold px-3 py-1 rounded-full border {% if n == 0 %}text-indigo-600 bg-indigo-50 border-indigo-100/50 {% elif n == 1 %}text-emerald-700 bg-emerald-50 border-emerald-100/50 {% else %}text-amber-600 bg-amber-50 border-amber-100/50 {% endif %}">
+                            {% set emojis = ['💡', '✍️', '📷'] %}{{ emojis[loop.index0 % 3] }} {{ it.category }}
+                        </span>
+                        <span class="text-xs text-gray-400 font-mono">{{ it.post.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+
+                    <!-- 正文：偶数条金句样式，奇数条普通文字 -->
+                    {% if loop.index is even %}
+                    <blockquote class="text-slate-800 font-light italic leading-relaxed text-base md:text-lg mb-4 border-l-2 border-emerald-500 pl-4 py-1">
+                        "{{ it.summary }}"
+                    </blockquote>
+                    {% else %}
+                    <p class="text-slate-700 font-light leading-relaxed mb-4 text-sm md:text-base">{{ it.summary }}</p>
+                    {% endif %}
+
+                    <!-- 配图（有封面才显示） -->
+                    {% if it.post.cover_image and loop.index is odd %}
+                    <div class="rounded-2xl overflow-hidden mb-4">
+                        <a href="/post/{{ it.post.id }}">
+                            <img src="{{ it.post.cover_image }}" alt="{{ it.post.title }}" loading="lazy"
+                                 class="w-full h-48 object-cover rounded-xl hover:scale-105 transition duration-500 cursor-pointer">
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <!-- 底部信息 -->
+                    <div class="flex justify-between items-center text-xs text-gray-400 pt-2 border-t border-gray-100/60">
+                        <span>{{ it.category }}</span>
+                        <span>
+                            <a href="/post/{{ it.post.id }}" class="hover:text-indigo-600 transition">阅读全文 ↗</a>
+                            <span class="ml-3"># {{ it.post.tags }}</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-center text-gray-400 font-light">还没有随笔。写文章时在标签里加上「随笔」就会出现在这里。</p>
+        {% endfor %}
+    </div>
+</main>
+
+{% endblock %}

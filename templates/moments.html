@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}说说 · ZIYI 的博客{% endblock %}
+{% block content %}
+
+<!-- 标语区 -->
+<header class="max-w-4xl mx-auto px-6 pt-32 pb-12 w-full text-center">
+    <span class="text-xs font-bold tracking-[0.25em] text-gray-400 uppercase mb-3 block">MOMENTS</span>
+    <h1 class="text-3xl md:text-5xl font-bold text-slate-900 dark:text-white mb-3">说说</h1>
+    <p class="text-xs text-slate-500 dark:text-gray-300 font-light">
+        即兴的只言片语，无需成文的碎碎念。
+    </p>
+    <div class="w-8 h-1 bg-emerald-600 mx-auto rounded-full mt-6"></div>
+</header>
+
+<!-- 说说流 (双列瀑布流，手机单列) -->
+<main class="max-w-5xl mx-auto px-6 pb-24 w-full">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {% for it in items %}
+        {% set n = loop.index0 % 4 %}
+        <div class="moment-item reveal-item relative group" style="transition-delay: {{ loop.index0 * 100 }}ms;">
+            <!-- 柔和液态光晕（晨雾绿/淡粉紫/天蓝/琥珀轮转，悬浮增强） -->
+            <div class="liquid-glow absolute -inset-3 rounded-3xl -z-10 {% if n == 0 %}bg-gradient-to-r from-rose-100 to-pink-100 {% elif n == 1 %}bg-gradient-to-r from-sky-100 to-indigo-100 {% elif n == 2 %}bg-gradient-to-r from-emerald-100 to-teal-100 {% else %}bg-gradient-to-r from-amber-100 to-orange-100 {% endif %}"></div>
+
+            <div class="glass-moment-card p-6 md:p-7 rounded-3xl flex flex-col justify-between h-full border border-slate-200/80 hover:border-emerald-500/40 transition-all duration-300">
+                <div>
+                    <!-- 心情标签 + 时间 -->
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xs font-bold px-3 py-1 rounded-full border {% if n == 0 %}text-emerald-700 bg-emerald-50 border-emerald-200 font-mono{% elif n == 1 %}text-emerald-700 bg-emerald-50 border-emerald-200 font-mono{% elif n == 2 %}text-emerald-700 bg-emerald-50 border-emerald-200 font-mono{% else %}text-emerald-700 bg-emerald-50 border-emerald-200 font-mono{% endif %}">
+                            {% set moods = [('🚀', '动态'), ('🌙', '沉静'), ('🌲', '雾森'), ('✨', '闪念')] %}
+                            {{ moods[n][0] }} {{ moods[n][1] }}
+                        </span>
+                        <span class="text-xs text-gray-400 font-mono">{{ it.post.created_at.strftime('%m-%d %H:%M') }}</span>
+                    </div>
+
+                    <!-- 说说正文（金句条斜体） -->
+                    {% if loop.index is even %}
+                    <p class="text-slate-800 leading-relaxed font-normal text-sm md:text-base mb-6 italic">
+                        "{{ it.summary }}"
+                    </p>
+                    {% else %}
+                    <p class="text-slate-800 leading-relaxed font-normal text-sm md:text-base mb-6">
+                        {{ it.summary }}
+                    </p>
+                    {% endif %}
+
+                    <!-- 配图（奇数条有封面才显示） -->
+                    {% if it.post.cover_image and loop.index is odd %}
+                    <div class="rounded-2xl overflow-hidden mb-6">
+                        <img src="{{ it.post.cover_image }}" alt="{{ it.post.title }}" loading="lazy"
+                             class="w-full h-36 object-cover rounded-xl hover:scale-105 transition duration-500">
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 互动区：点赞 + 标签 -->
+                <div class="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-slate-200">
+                    <button class="like-btn hover:text-rose-600 transition flex items-center space-x-1" onclick="this.classList.toggle('liked')">
+                        <span>❤ {{ (it.post.id * 7) % 23 + 5 }}</span>
+                    </button>
+                    <span class="text-gray-400 font-mono">
+                        <a href="/post/{{ it.post.id }}" class="hover:text-emerald-700 transition">查看详情 ↗</a>
+                        <span class="ml-2"># {{ it.post.tags }}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-center text-gray-400 font-light col-span-full">还没有说说。发文章时在标签里加上「说说」就会出现在这里。</p>
+        {% endfor %}
+    </div>
+</main>
+
+{% endblock %}

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="no-js scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>{% block title %}{{ cfg('site_name') }} 的博客{% endblock %}</title>
+<!-- SEO：默认取站点配置，文章页在 post.html 里覆盖 -->
+<meta name="description" content="{% block meta_description %}{{ cfg('hero_subtitle') }}{% endblock %}">
+<meta property="og:title" content="{% block og_title %}{{ cfg('site_name') }} - {{ cfg('hero_title') }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ cfg('hero_subtitle') }}{% endblock %}">
+<meta property="og:image" content="{% block og_image %}{{ cfg('hero_bg_image') }}{% endblock %}">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+<meta name="keywords" content="{% block meta_keywords %}FastAPI, Blog, Python, 设计, 技术博客{% endblock %}">
+{% block head_extra %}{% endblock %}
+<!-- 12.0 防黑屏：JS 就绪标记（no-js → js，无 JS 时内容照常可见） -->
+<script>document.documentElement.classList.remove('no-js'); document.documentElement.classList.add('js');</script>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    // 开启 Tailwind 暗黑模式 class 策略（14.0 双模）
+    tailwind.config = { darkMode: 'class' };
+</script>
+<!-- 防闪烁主题初始化（Anti-FART：DOM 前瞬间判断） -->
+<script>
+    (function () {
+        var t = localStorage.getItem('theme');
+        if (t === null) t = localStorage.getItem('pine-night') === '1' ? 'dark' : null;
+        var dark = t === 'dark' || (t === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+    })();
+</script>
+<!-- HTMX：软导航切页，顶栏/播放器 DOM 常驻 → 音乐零中断 -->
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<style>
+    /* --- 晨雾沉浸开屏动画 2.0 --- */
+    @keyframes fogDissolve {
+        0%   { opacity: 1; backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); }
+        70%  { opacity: 1; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        100% { opacity: 0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); visibility: hidden; pointer-events: none; }
+    }
+    @keyframes mistTextFocus {
+        0%   { opacity: 0; filter: blur(16px); transform: scale(0.92); letter-spacing: 0.5em; }
+        40%  { opacity: 1; filter: blur(0px);  transform: scale(1);    letter-spacing: 0.35em; }
+        75%  { opacity: 1; filter: blur(0px);  transform: scale(1.02); letter-spacing: 0.38em; }
+        100% { opacity: 0; filter: blur(10px); transform: scale(1.06); }
+    }
+    @keyframes subTextFade {
+        0%   { opacity: 0; transform: translateY(10px); }
+        40%  { opacity: 0.6; transform: translateY(0); }
+        75%  { opacity: 0.6; }
+        100% { opacity: 0; }
+    }
+    @keyframes fogGlowPulse {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50%      { opacity: 0.6; transform: scale(1.15); }
+    }
+    .welcome-mask {
+        animation: fogDissolve 1.4s cubic-bezier(0.65, 0, 0.35, 1) 2.2s forwards;
+        background: radial-gradient(circle at center, #1b2621 0%, #0c120f 100%);
+    }
+    .welcome-glow {
+        animation: fogGlowPulse 3s ease-in-out infinite;
+        filter: blur(60px);
+    }
+    .welcome-title {
+        animation: mistTextFocus 2.2s ease-in-out forwards;
+        background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.6) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .welcome-sub {
+        animation: subTextFade 2.2s ease-in-out forwards;
+    }
+
+    /* 隐藏滚动条但保留滚动功能 */
+    ::-webkit-scrollbar { display: none; }
+
+    /* 双模式基础平滑过渡（14.0） */
+    body { transition: background-color 0.3s ease, color 0.3s ease; }
+
+    /* 液态玻璃 (Liquid Glass) 流体动效 */
+    @keyframes liquidBlob {
+        0%   { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+        50%  { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+        100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    }
+    @keyframes slowSpin {
+        0%   { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .liquid-shape {
+        animation: liquidBlob 8s ease-in-out infinite, slowSpin 20s linear infinite;
+        filter: blur(40px);
+        opacity: 0.5;
+    }
+</style>
+<!-- 原有样式（文章详情页 / 后台 / 动效） -->
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body hx-boost="true" hx-select="#main-content" hx-target="#main-content" hx-swap="outerHTML show:window:top transition:true"
+      class="bg-[#faf8f5] dark:bg-[#0b100d] text-slate-800 dark:text-gray-200 font-sans antialiased min-h-screen flex flex-col relative selection:bg-emerald-500 selection:text-white">
+
+    <!-- 1. 晨雾氛围开屏遮罩（只在新开站点时播放一次，见 main.js） -->
+    <div id="welcomeMask" class="welcome-mask fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden" style="display:none">
+        <div class="welcome-glow absolute w-96 h-96 rounded-full bg-emerald-800/30"></div>
+        <div class="relative z-10 flex flex-col items-center text-center px-4">
+            <h1 class="welcome-title text-4xl md:text-6xl font-extralight tracking-[0.35em] mb-4 drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                HELLO ZIYI
+            </h1>
+            <p class="welcome-sub text-[10px] md:text-xs font-light tracking-[0.6em] text-emerald-200/60 uppercase">
+                — ENTER THE MIST —
+            </p>
+        </div>
+    </div>
+
+    <!-- 2. 日夜双模顶栏 + 大播放器组件（HTMX 切页时永不销毁） -->
+    {% set path = request.url.path %}
+    {% include "components/navbar_player.html" %}
+
+    <!-- 3. 页面主体容器：HTMX 切页时只替换这里 -->
+    <div id="main-content" class="flex-grow w-full animate-page-in">
+    {% block content %}{% endblock %}
+    </div>
+
+    <!-- 4. 页脚（双模） -->
+    <footer class="bg-slate-200/50 dark:bg-black/40 border-t border-slate-200/80 dark:border-white/5 py-10 text-center mt-auto">
+        <p class="text-xs text-slate-500 dark:text-gray-500 tracking-widest uppercase">&copy; 2026 ZIYI BLOG. ALL RIGHTS RESERVED.</p>
+        <p class="mt-4"><a href="/admin" class="text-xs text-slate-400 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition">后台管理</a></p>
+    </footer>
+
+    <!-- 5. 全站搜索模态框（双模） -->
+    <div id="searchModal" class="fixed inset-0 z-[100] hidden items-start justify-center pt-[15vh] px-4">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeSearch()"></div>
+        <div class="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+            <div class="flex items-center px-5 py-4 border-b border-slate-200">
+                <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input id="modalSearchInput" type="text" placeholder="搜索文章标题或内容…"
+                       class="flex-1 ml-3 bg-transparent outline-none text-sm text-slate-800 placeholder-slate-400">
+                <kbd class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-400">ESC</kbd>
+            </div>
+            <div id="searchResults" class="max-h-[50vh] overflow-y-auto p-2">
+                <p class="text-xs text-slate-400 text-center py-8 font-light">输入关键词开始搜索…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. 播放列表数据（后台配置单曲 + /api/playlist 自动扫描全部） -->
+    <script>
+        {% set t = cfg('bgm_title').split(' - ') %}
+        window.BGM_PLAYLIST = [
+            {"title": {{ t[0] | tojson }}, "artist": {{ (t[1] if t|length > 1 else '') | tojson }},
+             "src": {{ cfg('bgm_url') | tojson }}, "cover": "/static/covers/cover6.png", "lrc": {{ cfg('bgm_lyric') | tojson }}}
+        ];
+    </script>
+
+    <!-- 7. 页面切换降级遮罩 -->
+    <div id="transitionOverlay" class="page-transition-overlay"></div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑文章' if post else '写文章' }} · ZIYI 的博客{% endblock %}
+{% block content %}
+
+<div class="max-w-4xl mx-auto px-6 pt-28 pb-20">
+    <!-- 顶部 -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <span class="text-[10px] font-bold tracking-[0.3em] text-emerald-800/50 uppercase block mb-1">EDITOR</span>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900">{{ '编辑文章' if post else '写文章' }}</h1>
+        </div>
+        <a href="/admin" class="admin-btn-ghost">← 返回列表</a>
+    </div>
+
+    <form method="post" action="{{ '/admin/edit/' ~ post.id if post else '/admin/new' }}" enctype="multipart/form-data" class="admin-panel space-y-6 p-6 md:p-8">
+
+        <!-- 标题 -->
+        <div>
+            <label class="admin-label">标题 <span class="text-red-400">*</span></label>
+            <input type="text" name="title" value="{{ post.title if post else '' }}" required placeholder="写一个吸引人的标题..."
+                   class="admin-input">
+        </div>
+
+        <!-- 标签 + 分类提示 -->
+        <div>
+            <label class="admin-label">标签（逗号分隔）</label>
+            <input type="text" name="tags" value="{{ post.tags if post else '' }}" placeholder="随笔, 说说, 前端..."
+                   class="admin-input">
+            <p class="text-[11px] text-gray-400 mt-1.5">💡 标签含「说说」进说说页，含「随笔」进随笔页，其他进文章页</p>
+        </div>
+
+        <!-- 封面 -->
+        <div>
+            <label class="admin-label">封面图</label>
+            <div class="flex items-center gap-4">
+                <div class="w-32 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                    {% if post and post.cover_image %}
+                    <img id="coverPreview" src="{{ post.cover_image }}" class="w-full h-full object-cover">
+                    {% else %}
+                    <img id="coverPreview" class="w-full h-full object-cover hidden">
+                    <div id="coverPlaceholder" class="w-full h-full flex items-center justify-center text-gray-300 text-[10px]">无封面</div>
+                    {% endif %}
+                </div>
+                <div class="flex-1">
+                    <input id="coverInput" type="file" name="cover" accept="image/*"
+                           class="block w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-gray-100 file:text-gray-600 file:text-xs file:font-medium hover:file:bg-gray-200 file:cursor-pointer transition">
+                    <p class="text-[11px] text-gray-400 mt-1.5">不上传则保持原封面（编辑时）或无封面（新建时）</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 正文（Markdown + 预览切换） -->
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="admin-label mb-0">正文（Markdown）</label>
+                <div class="flex items-center space-x-2 text-xs">
+                    <button type="button" id="editTab" class="px-3 py-1 rounded-full bg-gray-900 text-white font-medium transition">编辑</button>
+                    <button type="button" id="previewTab" class="px-3 py-1 rounded-full bg-gray-100 text-gray-500 hover:text-gray-900 transition">预览</button>
+                </div>
+            </div>
+            <textarea id="mdEditor" name="content" placeholder="# 标题&#10;&#10;开始写作..."
+                      class="admin-input font-mono text-sm leading-relaxed min-h-[340px]">{{ post.content if post else '' }}</textarea>
+            <div id="mdPreview" class="hidden article-content admin-preview p-6 rounded-2xl border border-gray-100"></div>
+        </div>
+
+        <!-- 提交 -->
+        <div class="flex items-center space-x-3 pt-2">
+            <button type="submit" class="admin-btn-primary">💾 保存</button>
+            <a href="/admin" class="admin-btn-ghost">取消</a>
+        </div>
+    </form>
+</div>
+
+<!-- Markdown 渲染库（仅后台编辑页使用） -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script>
+    // 封面实时预览
+    const coverInput = document.getElementById('coverInput');
+    const coverPreview = document.getElementById('coverPreview');
+    const coverPlaceholder = document.getElementById('coverPlaceholder');
+    if (coverInput) {
+        coverInput.addEventListener('change', () => {
+            const file = coverInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                coverPreview.src = e.target.result;
+                coverPreview.classList.remove('hidden');
+                if (coverPlaceholder) coverPlaceholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Markdown 编辑 / 预览切换
+    const editor = document.getElementById('mdEditor');
+    const preview = document.getElementById('mdPreview');
+    const editTab = document.getElementById('editTab');
+    const previewTab = document.getElementById('previewTab');
+    if (editor && preview && window.marked) {
+        const showEdit = () => {
+            editor.classList.remove('hidden');
+            preview.classList.add('hidden');
+            editTab.className = 'px-3 py-1 rounded-full bg-gray-900 text-white font-medium transition';
+            previewTab.className = 'px-3 py-1 rounded-full bg-gray-100 text-gray-500 hover:text-gray-900 transition';
+        };
+        const showPreview = () => {
+            preview.innerHTML = marked.parse(editor.value || '*（空白）*');
+            editor.classList.add('hidden');
+            preview.classList.remove('hidden');
+            previewTab.className = 'px-3 py-1 rounded-full bg-gray-900 text-white font-medium transition';
+            editTab.className = 'px-3 py-1 rounded-full bg-gray-100 text-gray-500 hover:text-gray-900 transition';
+        };
+        editTab.addEventListener('click', showEdit);
+        previewTab.addEventListener('click', showPreview);
+    }
+</script>
+{% endblock %}

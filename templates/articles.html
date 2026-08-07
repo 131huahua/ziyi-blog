@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}文章 · ZIYI 的博客{% endblock %}
+{% block content %}
+
+<!-- 文章页 -->
+<main class="relative bg-[#faf8f5] dark:bg-[#0b100d] min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 pt-32 pb-24 w-full">
+
+        <!-- 页面标题 -->
+        <header class="text-center mb-12">
+            <span class="text-xs font-bold tracking-[0.25em] text-emerald-600 dark:text-emerald-400 uppercase mb-3 block">ARCHIVES</span>
+            <h1 class="text-3xl md:text-5xl font-bold text-slate-900 dark:text-white mb-8">探索所有文章</h1>
+            <div class="w-8 h-1 bg-emerald-600 mx-auto rounded-full"></div>
+        </header>
+
+        <!-- 筛选与搜索栏 -->
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 max-w-6xl mx-auto w-full mb-12">
+            <!-- 左：分类标签（flex-grow + min-w-0，标签多时横向滚动，绝不挤压搜索框） -->
+            <div id="filterBar" class="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none flex-grow min-w-0 pr-2">
+                <button data-filter="all" class="tag-btn px-4 py-2 rounded-full text-xs font-semibold bg-slate-200/80 hover:bg-slate-300 text-slate-700 shadow-sm flex-shrink-0 transition whitespace-nowrap">
+                    全部 ({{ total }})
+                </button>
+                {% for c in categories %}
+                <button data-filter="{{ c.name }}" class="tag-btn px-4 py-2 rounded-full text-xs font-semibold bg-slate-200/80 hover:bg-slate-300 text-slate-700 shadow-sm flex-shrink-0 transition whitespace-nowrap">
+                    {{ c.name }} ({{ c.count }})
+                </button>
+                {% endfor %}
+            </div>
+
+            <!-- 右：固定宽度搜索框（flex-shrink-0 永不挤压；图标垂直居中） -->
+            <div class="relative w-full md:w-60 flex-shrink-0">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input id="searchInput" type="text" placeholder="搜索文章标题..."
+                       class="w-full pl-9 pr-4 py-2 text-xs bg-white/80 backdrop-blur-md border border-slate-200 rounded-full text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 transition-all shadow-sm">
+            </div>
+        </div>
+
+        <!-- 文章网格 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            {% for it in items %}
+            <article class="article-card reveal-item glass-interactive-card relative group cursor-pointer"
+                     data-tags="{{ it.post.tags }}" data-title="{{ it.post.title | lower }}"
+                     style="transition-delay: {{ loop.index0 * 80 }}ms;">
+                <!-- 悬浮液态光晕背景 -->
+                <div class="card-glow absolute -inset-2 {% if loop.index is odd %}bg-gradient-to-r from-blue-100 to-indigo-100{% else %}bg-gradient-to-r from-purple-100 to-pink-100{% endif %} rounded-3xl opacity-0 blur-xl"></div>
+
+                <div class="relative bg-white/90 dark:bg-[#131d17]/80 backdrop-blur-xl rounded-3xl overflow-hidden p-4 border border-slate-200/80 dark:border-white/10 shadow-sm group-hover:shadow-xl hover:border-emerald-500/40 transition-all duration-300">
+                    <!-- 封面图 -->
+                    <div class="aspect-[16/10] w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-gray-900 mb-4 relative">
+                        {% if it.post.cover_image %}
+                        <img src="{{ it.post.cover_image }}" alt="{{ it.post.title }}" loading="lazy"
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-700 ease-out">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-gray-300 text-sm">无封面</div>
+                        {% endif %}
+                        <span class="cover-badge absolute top-3 left-3 bg-white/90 dark:bg-black/70 backdrop-blur-md text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-full border border-slate-200/60 dark:border-white/10 font-mono">
+                            {{ it.category }}
+                        </span>
+                    </div>
+
+                    <!-- 内容 -->
+                    <div class="px-2 pb-2 flex flex-col justify-between h-full">
+                        <span class="text-[10px] text-slate-400 dark:text-gray-400 font-mono block mb-1.5">{{ it.post.created_at.strftime('%Y-%m-%d') }}</span>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
+                            <a href="/post/{{ it.post.id }}">{{ it.post.title }}</a>
+                        </h3>
+                        <p class="text-slate-600 dark:text-gray-300 font-light text-xs leading-relaxed line-clamp-2 mb-4">
+                            {{ it.summary }}
+                        </p>
+                        <a href="/post/{{ it.post.id }}" class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center space-x-1 pt-2 border-t border-slate-100 dark:border-white/5">
+                            <span>阅读全文</span><span>↗</span>
+                        </a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+
+        <!-- 空状态 -->
+        <p id="emptyState" class="hidden text-center text-slate-400 dark:text-gray-500 font-light mt-16">没有找到相关文章。</p>
+    </div>
+</main>
+
+{% endblock %}

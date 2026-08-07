@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# 数据库
+blog.db
+*.db
+
+# 环境变量与密钥
+.env
+*.env
+
+# 本地素材（壁纸/封面原图）
+static/covers/*
+static/assets/*
+!static/covers/.gitkeep
+!static/assets/.gitkeep
+
+# 私人网盘文件（不公开）
+storage/private/*
+!storage/private/.gitkeep
+
+# 备份与部署脚本
+backups/
+deploy/
+*.tar.gz
+
+# 临时文件
+tmp_*.py
+mc.js
