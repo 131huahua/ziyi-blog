@@ -1,9 +1,12 @@
-"""LangChain RAG 核心：食谱 → 切块 → 向量化 → 检索 → 生成。
+"""LangChain RAG v2：检索 → 记忆注入 → 工具调度 → 推荐回答
 
-懒加载设计：首次提问时才建索引，避免博客启动变慢 / 内存峰值。
+保留 v1 功能：上传文档解析 / 文档管理 / 重建索引 / 健康状态
+新增 v2 功能：多轮对话 chat()（记忆+画像+双身份+工具）、本地 embedding
 """
 import json
 import logging
+import os
+import re
 from pathlib import Path
 
 logger = logging.getLogger("ai_recipe")
@@ -16,6 +19,20 @@ CHROMA_DIR = BASE_DIR / "chroma_db"
 _llm = None
 _vectorstore = None
 _last_error: str | None = None
+
+# 角色切换关键词 → 切换后身份
+ROLE_KEYWORDS = {
+    "nutritionist": ["营养师", "减脂", "控糖", "减肥", "增肌", "健身餐", "卡路里", "热量低", "低卡"],
+}
+BACK_TO_CHEF_KEYWORDS = ["切回厨师", "变回厨师", "还是厨师", "厨师模式"]
+
+# 画像自动学习关键词
+LEARN_RULES = [
+    (re.compile(r"不(吃|喜欢|要|沾)([^，。！？\s,.;!?]{1,8})"), "忌口", "capture2"),
+    (re.compile(r"对([^，。！？\s,.;!?]{1,8})过敏"), "忌口", "capture1"),
+    (re.compile(r"(减肥|减脂|控糖|增肌|健身|低卡|清淡饮食)"), "健康目标", "fixed"),
+    (re.compile(r"(喜欢|爱吃)(吃)?([^，。！？\s,.;!?]{1,4})口味"), "口味偏好", "capture3"),
+]
 
 
 # ---------- 上传文档解析 ----------
@@ -54,7 +71,7 @@ def list_docs() -> list[dict]:
 
 
 def delete_doc(rel_path: str) -> dict:
-    """删除食谱库文档（仅允许删除上传文档，防误删仓库文件）"""
+    """删除食谱库文档（仅允许删除上传文档，防删库文件）"""
     target = (RECIPES_DIR / rel_path).resolve()
     if not target.is_file() or not str(target).startswith(str(RECIPES_DIR.resolve())):
         raise ValueError("文件不存在")
@@ -64,6 +81,8 @@ def delete_doc(rel_path: str) -> dict:
     _get_vectorstore(force_rebuild=True)
     return {"status": "ok", "message": f"已删除 {rel_path} 并重建索引"}
 
+
+# ---------- 模型 ----------
 
 def _get_llm():
     """对话模型（OpenAI 兼容）"""
@@ -76,26 +95,35 @@ def _get_llm():
             model=settings.chat_model,
             api_key=settings.chat_api_key,
             base_url=settings.chat_base_url,
-            temperature=0.3,
-            max_tokens=2000,
+            temperature=settings.temperature,
+            max_tokens=settings.max_tokens,
             timeout=60,
         )
     return _llm
 
 
 def _get_embeddings():
-    """向量模型（OpenAI 兼容，ChatAnywhere text-embedding-3-small）"""
-    from langchain_openai import OpenAIEmbeddings
+    """向量模型：默认本地 fastembed（离线免费）；配了 EMBEDDING_API_KEY 才走 API"""
     from .config import settings
 
+    if settings.embedding_provider == "local" and not settings.embedding_api_key:
+        # 国内网络：默认走 hf-mirror 镜像下载模型；禁用 xet 协议（镜像不支持，会 401）
+        os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+        os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+        from langchain_community.embeddings import FastEmbedEmbeddings
+        return FastEmbedEmbeddings(model_name=settings.embedding_model)
+
+    from langchain_openai import OpenAIEmbeddings
     return OpenAIEmbeddings(
         model=settings.embedding_model,
         api_key=settings.embedding_api_key,
         base_url=settings.embedding_base_url,
-        timeout=30,          # 单次 embedding 请求超时，防止卡死 worker
-        max_retries=1,       # 失败只重试 1 次
+        timeout=30,
+        max_retries=1,
     )
 
+
+# ---------- 索引 ----------
 
 def _load_and_split():
     """读取 recipes/ 下所有 .md 食谱文件并切块"""
@@ -128,7 +156,10 @@ def _get_vectorstore(force_rebuild: bool = False):
         return _vectorstore
 
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    if force_rebuild or not (CHROMA_DIR / "chroma.sqlite3").exists():
+    collection_names = {c.name for c in client.list_collections()}
+    needs_rebuild = force_rebuild or "recipes" not in collection_names
+
+    if needs_rebuild:
         # 删除旧 collection（embedding 模型更换后维度可能不匹配）
         try:
             client.delete_collection("recipes")
@@ -148,58 +179,177 @@ def _get_vectorstore(force_rebuild: bool = False):
     return _vectorstore
 
 
-def ask(question: str) -> dict:
-    """提问入口：检索相关食谱片段 → 交给 LLM 按提示词格式回答
+# ---------- v2 多轮对话 ----------
 
-    返回: {"answer": <dict>, "sources": [文件名...]}
+def _detect_role(user_id: str, question: str) -> str:
+    """根据用户消息自动切换身份（并写回画像）"""
+    from .memory import get_profile, update_profile
+
+    profile = get_profile(user_id)
+    role = profile.get("role", "chef")
+
+    if any(k in question for k in BACK_TO_CHEF_KEYWORDS):
+        if role != "chef":
+            update_profile(user_id, role="chef")
+        return "chef"
+
+    for target, keywords in ROLE_KEYWORDS.items():
+        if any(k in question for k in keywords) and role != target:
+            update_profile(user_id, role=target)
+            return target
+    return role
+
+
+def _learn_from_message(user_id: str, question: str) -> None:
+    """从用户反馈里自动学习画像：忌口/健康目标/口味偏好"""
+    from .memory import update_profile
+
+    learned = {}
+    for pattern, field, mode in LEARN_RULES:
+        m = pattern.search(question)
+        if not m:
+            continue
+        if mode == "fixed":
+            learned[field] = m.group(1)
+        elif mode == "capture1":
+            learned.setdefault(field, []).append(m.group(1))
+        elif mode == "capture2":
+            learned.setdefault(field, []).append(m.group(2))
+        elif mode == "capture3":
+            learned.setdefault(field, []).append(m.group(3))
+    if learned:
+        update_profile(user_id, **learned)
+
+
+def _history_to_text(history: list[dict]) -> str:
+    """把最近对话历史压成紧凑文本"""
+    if not history:
+        return ""
+    lines = []
+    for msg in history:
+        role = "用户" if msg["role"] == "user" else "助手"
+        lines.append(f"{role}: {msg['content']}")
+    return "\n".join(lines)
+
+
+def _is_recommend_question(question: str) -> bool:
+    return any(k in question for k in ["吃什么", "推荐", "今晚", "明天", "做点", "有啥", "给我来", "安排"])
+
+
+def _call_llm(messages: list) -> str:
+    """调用 LLM，返回文本"""
+    resp = _get_llm().invoke(messages)
+    return resp.content if hasattr(resp, "content") else str(resp)
+
+
+def chat(user_id: str, question: str, role: str | None = None) -> dict:
+    """多轮对话主入口（推荐/问答/营养师模式都走这里）
+
+    - role 参数可临时指定身份（不写回画像）；缺省时自动检测+学习
+    - 返回 {"answer": {...}, "sources": [...]}
     """
-    global _last_error
     from .config import settings
-    from .prompt import SYSTEM_PROMPT
-    from langchain_chroma import Chroma  # noqa: F401  确保依赖已安装
+    from .memory import add_message, get_history, get_profile
+    from .prompt import build_system_prompt
+    from .tools import run_tool
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    global _last_error
     if not settings.ready:
-        _last_error = "AI 未配置：请在 .env 中设置 CHAT_API_KEY 和 EMBEDDING_API_KEY"
+        _last_error = "AI 未配置：请在 .env 中设置 CHAT_API_KEY"
         raise RuntimeError(_last_error)
 
     try:
+        profile = get_profile(user_id)
+        if role is None:
+            role = _detect_role(user_id, question)
+        _learn_from_message(user_id, question)
+        profile = get_profile(user_id)
+
+        history = get_history(user_id, limit=settings.history_limit)
         vectorstore = _get_vectorstore()
-        # MMR 检索：提升结果多样性，避免相似片段扎堆漏掉目标菜谱
+        k = 6 if _is_recommend_question(question) else 4
         retriever = vectorstore.as_retriever(
             search_type="mmr",
-            search_kwargs={"k": 8, "fetch_k": 20, "lambda_mult": 0.7},
+            search_kwargs={"k": k, "fetch_k": 20, "lambda_mult": 0.7},
         )
+        docs = retriever.invoke(question)
+        context = "\n\n".join(d.page_content for d in docs)
 
-        from langchain_core.output_parsers import StrOutputParser
+        history_text = _history_to_text(history)
+        system_prompt = build_system_prompt(role, profile)
 
-        def _format_docs(docs):
-            return "\n\n".join(d.page_content for d in docs)
+        def build_messages(extra_context: str = "") -> list:
+            msgs = [SystemMessage(content=system_prompt)]
+            if history_text:
+                msgs.append(SystemMessage(content=f"【对话历史】\n{history_text}"))
+            msgs.append(HumanMessage(content=(
+                f"【参考资料】\n{context}\n\n"
+                f"{extra_context}\n\n"
+                f"【用户问题】{question}"
+            )))
+            return msgs
 
-        # 手工构造消息（不用 ChatPromptTemplate，避免 system 提示词里的 JSON 花括号被当成模板变量）
-        retrieved = retriever.invoke(question)
-        messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"【参考资料】\n{_format_docs(retrieved)}\n\n【用户问题】{question}"),
-        ]
-        answer_text = (_get_llm() | StrOutputParser()).invoke(messages)
+        # 第一轮：可能输出 tool_calls，也可能直接回答
+        answer_text = _call_llm(build_messages())
         parsed = _try_parse_json(answer_text)
+
+        # 工具调度：模型要调工具 → 执行 → 结果拼回 → 第二轮
+        if isinstance(parsed, dict) and parsed.get("type") == "tool_calls":
+            tool_results = []
+            for call in parsed.get("calls", []):
+                name = call.get("name")
+                args = call.get("arguments", {})
+                result = run_tool(name, args)
+                tool_results.append(
+                    f"工具 {name}({json.dumps(args, ensure_ascii=False)}) 结果："
+                    f"{json.dumps(result, ensure_ascii=False)}"
+                )
+            extra = "【工具执行结果】\n" + "\n".join(tool_results) + "\n\n请基于工具结果输出正式回答。"
+            answer_text = _call_llm(build_messages(extra))
+            parsed = _try_parse_json(answer_text)
+
         if parsed is None:
-            # AI 格式跑偏：重试一次，强制 JSON
-            fixed = _get_llm().invoke([
-                ("system", SYSTEM_PROMPT),
-                ("human", f"你刚才的输出不是合法 JSON。请把下面内容重新整理成合法 JSON 输出，严格遵守系统格式要求：\n{answer_text}"),
+            fix_prompt = (
+                f"你刚才的输出不是合法 JSON。请把下面内容重新整理成合法 JSON 输出，"
+                f"严格遵守系统格式要求：\n{answer_text}"
+            )
+            fixed = _call_llm([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=fix_prompt),
             ])
-            parsed = _try_parse_json(fixed.content) or {"type": "parse_error", "message": "AI 输出解析失败，请重试"}
+            parsed = _try_parse_json(fixed) or {"type": "parse_error", "message": "AI 输出解析失败，请重试"}
+
+        # 写回短期记忆
+        add_message(user_id, "user", question)
+        add_message(user_id, "assistant", _answer_to_text(parsed))
 
         return {
             "answer": parsed,
-            "sources": sorted({d.metadata.get("source", "") for d in retrieved}),
+            "sources": sorted({d.metadata.get("source", "") for d in docs}),
+            "role": role,
         }
     except Exception as e:
         _last_error = str(e)
-        logger.exception("食谱问答失败")
+        logger.exception("食谱对话失败")
         raise
+
+
+def _answer_to_text(answer: dict) -> str:
+    """把回答 JSON 压成一行文本存进历史"""
+    t = answer.get("type", "")
+    if t == "recipe":
+        return f"推荐了菜谱：{answer.get('name')}"
+    if t == "recipes":
+        return f"推荐了菜谱：{'、'.join(answer.get('name', []))}"
+    if t == "recommend":
+        return f"推荐：{answer.get('name')}（{answer.get('why', '')}）"
+    return answer.get("message", "")[:100]
+
+
+def ask(question: str) -> dict:
+    """兼容 v1 的 /api/ai/ask：单轮问答（匿名用户，无记忆）"""
+    return chat(user_id="anonymous", question=question)
 
 
 def rebuild() -> dict:
@@ -215,6 +365,7 @@ def status() -> dict:
         "configured": settings.ready,
         "recipes_dir": str(RECIPES_DIR),
         "index_exists": (CHROMA_DIR / "chroma.sqlite3").exists(),
+        "embedding_provider": settings.embedding_provider,
         "last_error": _last_error,
     }
 
@@ -230,4 +381,11 @@ def _try_parse_json(text: str):
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # 尝试截取第一个 { 到最后一个 }
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end > start:
+            try:
+                return json.loads(text[start:end + 1])
+            except json.JSONDecodeError:
+                return None
         return None

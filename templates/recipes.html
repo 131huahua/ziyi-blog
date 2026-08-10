@@ -397,6 +397,23 @@
 
 <script>
     // 提问框自动增高
+    // 访客 id：localStorage 持久化，服务端据此记住口味/忌口/对话历史
+    function getVisitorId() {
+        let id = localStorage.getItem('recipe_visitor_id');
+        if (!id) {
+            id = 'v-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem('recipe_visitor_id', id);
+        }
+        return id;
+    }
+
+    // 身份 → 头像/名字
+    function roleMeta(role) {
+        return role === 'nutritionist'
+            ? { avatar: '🥗', name: '营养师小林' }
+            : { avatar: '👨‍🍳', name: '厨师老王' };
+    }
+
     function autoGrow(el) {
         el.style.height = 'auto';
         el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -442,14 +459,14 @@
 
         btn.disabled = true;
         try {
-            const res = await fetch('/api/ai/ask', {
+            const res = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: q })
+                body: JSON.stringify({ user_id: getVisitorId(), question: q })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || '服务暂时不可用');
-            renderAnswer(cardId, data.answer, data.sources || []);
+            renderAnswer(cardId, data.answer, data.sources || [], data.role || 'chef');
         } catch (e) {
             renderError(cardId, e.message || '网络错误，请重试');
         } finally {
@@ -457,9 +474,12 @@
         }
     }
 
-    function renderAnswer(cardId, a, sources) {
+    function renderAnswer(cardId, a, sources, role) {
         const card = document.getElementById(cardId);
         if (!card) return;
+        const meta = roleMeta(role || 'chef');
+        card.querySelector('.bot-avatar').textContent = meta.avatar;
+        card.querySelector('.bot-name').textContent = meta.name;
         card.querySelector('.status-tag').className = 'status-tag';
         card.querySelector('.status-tag').textContent = '✓ 已找到';
 
@@ -472,6 +492,9 @@
         } else if (type === 'not_found') {
             card.querySelector('.status-tag').textContent = '🔍 未找到';
             content.innerHTML = `<p class="msg-tip">${esc(a.message || '')}</p>`;
+        } else if (type === 'identity') {
+            card.querySelector('.status-tag').textContent = '👋 自我介绍';
+            content.innerHTML = `<p class="msg-tip">${esc(a.message || '')}</p>`;
         } else if (type === 'parse_error') {
             card.querySelector('.status-tag').textContent = '😵 出错了';
             content.innerHTML = `<p class="msg-tip">AI 输出解析失败，请重试</p>`;
@@ -482,7 +505,10 @@
                 <div class="recipe-tags">
                     <span class="tag-pill">难度：${esc(r.difficulty || '-')}</span>
                     <span class="tag-pill">⏱ ${esc(r.time || '-')}</span>
+                    ${type === 'recommend' ? '<span class="tag-pill" style="background:rgba(245,158,11,.12);color:#b45309;border-color:rgba(245,158,11,.3);">✨ 为你推荐</span>' : ''}
                 </div>
+                ${type === 'recommend' && r.why ? `<div class="section-label">为什么推荐</div><p class="msg-tip" style="margin:0;">${esc(r.why)}</p>` : ''}
+                ${type === 'recommend' && r.how ? `<div class="section-label">省事要点</div><p class="msg-tip" style="margin:0;">💡 ${esc(r.how)}</p>` : ''}
                 <div class="section-label">食材</div>
                 <div class="ingredients">
                     ${(r.ingredients || []).map(i => `<span class="ingredient-pill">${esc(i)}</span>`).join('')}
@@ -532,11 +558,16 @@
         }
     }
 
-    // 清空全部对话
+    // 清空全部对话（同时清掉服务端记忆，避免下次上下文残留）
     function clearChat() {
         if (!confirm('确定清空全部对话？')) return;
         document.getElementById('chatHistory').innerHTML = '';
         document.getElementById('chatToolbar').style.display = 'none';
+        fetch('/api/ai/chat/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: getVisitorId() })
+        }).catch(() => {});
     }
 
     function esc(s) {

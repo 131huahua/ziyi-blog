@@ -659,6 +659,13 @@ class AiAskRequest(BaseModel):
     question: str
 
 
+class AiChatRequest(BaseModel):
+    """v2 多轮对话：带 user_id（前端 localStorage 访客 id）就有记忆"""
+    user_id: str = "anonymous"
+    question: str
+    role: str | None = None  # 临时指定身份：chef / nutritionist（不写回画像）
+
+
 class AiRewriteRequest(BaseModel):
     text: str
     instruction: str = "润色"
@@ -716,6 +723,67 @@ def ai_ask(req: AiAskRequest, request: Request):
             raise HTTPException(status_code=503, detail="AI 服务暂时不可用，请稍后再试")
     finally:
         quota.release_concurrent(ip)
+
+
+@app.post("/api/ai/chat")
+def ai_chat(req: AiChatRequest, request: Request):
+    """v2 多轮对话：记忆/画像/双身份/推荐/工具，POST {"user_id","question","role?"}
+
+    防护与 /api/ai/ask 一致（来源校验 + 限流 + 并发控制）。
+    user_id 为前端 localStorage 生成的访客 id，限制长度防滥用。
+    """
+    from ai_recipe import quota, rag
+
+    ip = request.client.host if request.client else "unknown"
+    token = quota.resolve_token(request)
+
+    if not token:
+        ok, msg = quota.check_origin(request)
+        if not ok:
+            raise HTTPException(status_code=403, detail=msg)
+
+    q = (req.question or "").strip()
+    ok, msg = quota.check_question_len(q)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    user_id = (req.user_id or "anonymous").strip()[:64]
+
+    if not quota.acquire_concurrent(ip):
+        raise HTTPException(status_code=429, detail="请求太密集，请等上一条回答完再问～")
+    try:
+        allowed, msg, _remain = quota.check_quota(ip, token)
+        if not allowed:
+            quota.record(ip, token, False)
+            raise HTTPException(status_code=429, detail=msg)
+        quota.record(ip, token, True)
+        try:
+            return rag.chat(user_id=user_id, question=q, role=req.role)
+        except RuntimeError as e:
+            import logging
+            logging.getLogger("ai_recipe").error("AI 对话失败: %s", e)
+            raise HTTPException(status_code=503, detail="AI 服务暂时不可用，请稍后再试")
+    finally:
+        quota.release_concurrent(ip)
+
+
+class AiChatClearRequest(BaseModel):
+    user_id: str = "anonymous"
+
+
+@app.post("/api/ai/chat/clear")
+def ai_chat_clear(req: AiChatClearRequest, request: Request):
+    """清空某访客的对话历史（画像保留）。来源校验防跨站滥用。"""
+    from ai_recipe import quota
+
+    if not quota.resolve_token(request):
+        ok, msg = quota.check_origin(request)
+        if not ok:
+            raise HTTPException(status_code=403, detail=msg)
+    user_id = (req.user_id or "anonymous").strip()[:64]
+    from ai_recipe.memory import clear_history
+    clear_history(user_id)
+    return {"status": "ok"}
 
 
 @app.get("/api/ai/quota")
