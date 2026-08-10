@@ -36,7 +36,7 @@ def _get_llm():
 
 
 def _get_embeddings():
-    """向量模型（OpenAI 兼容，硅基流动 bge-m3 免费）"""
+    """向量模型（OpenAI 兼容，ChatAnywhere text-embedding-3-small）"""
     from langchain_openai import OpenAIEmbeddings
     from .config import settings
 
@@ -44,6 +44,8 @@ def _get_embeddings():
         model=settings.embedding_model,
         api_key=settings.embedding_api_key,
         base_url=settings.embedding_base_url,
+        timeout=30,          # 单次 embedding 请求超时，防止卡死 worker
+        max_retries=1,       # 失败只重试 1 次
     )
 
 
