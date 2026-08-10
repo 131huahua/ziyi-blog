@@ -3,61 +3,352 @@
 {% block meta_description %}问问我今天吃什么 —— 基于个人食谱库的 AI 食谱助手{% endblock %}
 {% block content %}
 
-<div class="max-w-3xl mx-auto px-6 pt-28 pb-24">
-    <!-- 标题区 -->
-    <div class="text-center mb-10">
-        <span class="text-[10px] font-bold tracking-[0.3em] text-emerald-800/50 dark:text-emerald-300/50 uppercase block mb-3">AI RECIPE ASSISTANT</span>
-        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white tracking-wide">🍳 食谱助手</h1>
-        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">基于我的个人食谱库，问任何关于吃的问题 —— 只回答美食，其他一概不答。</p>
+<style>
+    /* ===== 食谱助手 UI（适配 ZIYI 晨雾美学：奶白底 + 品牌绿，支持日夜双模） ===== */
+    .recipe-assistant-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 64px 20px 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    /* 顶部 Header：Badge + 淡绿 Halo 微光 */
+    .assistant-header {
+        text-align: center;
+        margin-bottom: 36px;
+        position: relative;
+    }
+    .assistant-header::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 320px;
+        height: 200px;
+        background: radial-gradient(ellipse at center, rgba(15, 91, 71, 0.10) 0%, transparent 70%);
+        filter: blur(30px);
+        pointer-events: none;
+        z-index: -1;
+    }
+    .badge-tag {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2.5px;
+        color: #0c4a3e;
+        background: rgba(12, 74, 62, 0.08);
+        border: 1px solid rgba(12, 74, 62, 0.12);
+        padding: 5px 14px;
+        border-radius: 20px;
+        margin-bottom: 14px;
+    }
+    html.dark .badge-tag { color: #6ee7b7; background: rgba(16, 185, 129, 0.10); border-color: rgba(16, 185, 129, 0.2); }
+    .assistant-title {
+        font-size: 32px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 12px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        letter-spacing: 0.02em;
+    }
+    html.dark .assistant-title { color: #f9fafb; }
+    .title-icon { font-size: 28px; }
+    .assistant-subtitle { font-size: 14px; color: #6b7280; margin: 0; line-height: 1.7; }
+    html.dark .assistant-subtitle { color: #9ca3af; }
+    .assistant-subtitle .divider { color: #d1d5db; margin: 0 4px; }
+    html.dark .assistant-subtitle .divider { color: #374151; }
+
+    /* 主交互卡片 */
+    .assistant-main { width: 100%; }
+    .search-card {
+        background: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 20px;
+        padding: 16px 20px;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+        transition: all 0.25s ease;
+    }
+    html.dark .search-card { background: #111a16; border-color: rgba(255, 255, 255, 0.06); box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3); }
+    .search-card:focus-within {
+        border-color: rgba(12, 74, 62, 0.3);
+        box-shadow: 0 12px 36px -4px rgba(12, 74, 62, 0.10), 0 4px 16px -2px rgba(0, 0, 0, 0.02);
+    }
+    html.dark .search-card:focus-within { border-color: rgba(16, 185, 129, 0.3); box-shadow: 0 12px 36px -4px rgba(16, 185, 129, 0.12); }
+
+    /* 输入框 + 按钮组合 */
+    .input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #f9fafb;
+        border: 1px solid #f3f4f6;
+        border-radius: 14px;
+        padding: 8px 8px 8px 16px;
+        transition: background 0.2s, border-color 0.2s;
+    }
+    html.dark .input-wrapper { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.06); }
+    .search-card:focus-within .input-wrapper { background: #ffffff; border-color: #e5e7eb; }
+    html.dark .search-card:focus-within .input-wrapper { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
+    .query-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: 15px;
+        color: #1f2937;
+        resize: none;
+        line-height: 1.6;
+        font-family: inherit;
+        max-height: 120px;
+    }
+    html.dark .query-input { color: #f3f4f6; }
+    .query-input::placeholder { color: #9ca3af; }
+
+    /* 提问按钮（品牌绿） */
+    .btn-send {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #0c4a3e;
+        color: #ffffff;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    html.dark .btn-send { background: #0f5b47; }
+    .btn-send:hover { background: #116252; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(12, 74, 62, 0.25); }
+    .btn-send:active { transform: translateY(0); }
+    .btn-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* 快捷 Chips（下移，虚线分隔） */
+    .quick-chips {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px dashed #e5e7eb;
+    }
+    html.dark .quick-chips { border-top-color: rgba(255, 255, 255, 0.08); }
+    .chips-label { font-size: 12px; color: #9ca3af; margin-right: 4px; }
+    .chip-item {
+        background: #f3f4f6;
+        border: 1px solid transparent;
+        color: #4b5563;
+        font-size: 12px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+    }
+    html.dark .chip-item { background: rgba(255, 255, 255, 0.05); color: #9ca3af; }
+    .chip-item:hover {
+        background: #eef2f6;
+        color: #0c4a3e;
+        border-color: rgba(12, 74, 62, 0.25);
+        transform: translateY(-1px);
+    }
+    html.dark .chip-item:hover { background: rgba(16, 185, 129, 0.08); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.25); }
+    .chip-item.warning:hover { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+
+    /* 对话历史区 */
+    #chatHistory { margin-top: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* 用户问题气泡 */
+    .user-msg {
+        align-self: flex-end;
+        max-width: 80%;
+        background: #0c4a3e;
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 18px 18px 4px 18px;
+        font-size: 14px;
+        line-height: 1.6;
+        box-shadow: 0 4px 12px rgba(12, 74, 62, 0.15);
+    }
+    html.dark .user-msg { background: #0f5b47; }
+
+    /* AI 回答卡片 */
+    .response-card {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        animation: cardIn 0.3s ease;
+    }
+    html.dark .response-card { background: #111a16; border-color: rgba(255, 255, 255, 0.06); }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .response-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .bot-avatar {
+        width: 30px; height: 30px;
+        background: #ecfdf5;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px;
+    }
+    html.dark .bot-avatar { background: rgba(16, 185, 129, 0.12); }
+    .bot-name { font-weight: 600; font-size: 14px; color: #111827; }
+    html.dark .bot-name { color: #f9fafb; }
+    .status-tag {
+        font-size: 11px;
+        background: #ecfdf5;
+        color: #059669;
+        padding: 2px 10px;
+        border-radius: 12px;
+        margin-left: auto;
+    }
+    html.dark .status-tag { background: rgba(16, 185, 129, 0.12); color: #34d399; }
+    .status-tag.loading { background: #fef3c7; color: #b45309; animation: pulse 1.2s infinite; }
+    html.dark .status-tag.loading { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* 回答内容：菜名 / 标签 / 食材 / 步骤 */
+    .recipe-name { font-size: 19px; font-weight: 700; color: #111827; margin: 0 0 10px; }
+    html.dark .recipe-name { color: #f9fafb; }
+    .recipe-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tag-pill {
+        font-size: 11px; font-weight: 600;
+        padding: 3px 12px; border-radius: 20px;
+        background: rgba(12, 74, 62, 0.07); color: #0c4a3e;
+        border: 1px solid rgba(12, 74, 62, 0.12);
+    }
+    html.dark .tag-pill { background: rgba(16, 185, 129, 0.08); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.2); }
+    .section-label {
+        font-size: 10px; font-weight: 700; letter-spacing: 2px;
+        color: #9ca3af; text-transform: uppercase; margin: 14px 0 8px;
+    }
+    .ingredients { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ingredient-pill {
+        font-size: 12px;
+        background: #f3f4f6; color: #4b5563;
+        padding: 5px 12px; border-radius: 20px;
+    }
+    html.dark .ingredient-pill { background: rgba(255, 255, 255, 0.05); color: #d1d5db; }
+    .steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    .steps li { display: flex; gap: 10px; font-size: 14px; color: #374151; line-height: 1.7; }
+    html.dark .steps li { color: #d1d5db; }
+    .step-num {
+        flex-shrink: 0;
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: rgba(12, 74, 62, 0.08); color: #0c4a3e;
+        font-size: 11px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+        margin-top: 3px;
+    }
+    html.dark .step-num { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
+    .msg-tip { font-size: 14px; color: #374151; line-height: 1.7; }
+    html.dark .msg-tip { color: #d1d5db; }
+    .ref-sources { margin-top: 12px; font-size: 11px; color: #9ca3af; }
+
+    /* 底部 Tip */
+    .assistant-footer { text-align: center; margin-top: 32px; font-size: 12px; color: #9ca3af; }
+</style>
+
+<div class="recipe-assistant-container">
+    <!-- 1. 顶部 Header -->
+    <header class="assistant-header">
+        <div class="badge-tag">AI RECIPE ASSISTANT</div>
+        <h1 class="assistant-title"><span class="title-icon">🍳</span> 食谱助手</h1>
+        <p class="assistant-subtitle">基于我的个人食谱库，问任何关于吃的问题 <span class="divider">—</span> 只回答美食，其他一概不答。</p>
         {% if ai_status and not ai_status.configured %}
         <p class="mt-4 inline-block text-xs bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20 rounded-full px-4 py-1.5">
             ⚠️ AI 尚未配置（.env 缺少 API Key），管理员请先配置
         </p>
         {% endif %}
-    </div>
+    </header>
 
-    <!-- 提问框 -->
-    <div class="admin-panel p-4 md:p-5 rounded-3xl">
-        <div class="flex items-center gap-3">
-            <input id="aiQuestion" type="text" placeholder="比如：有没有 20 分钟能做完的菜？"
-                   class="flex-1 bg-transparent outline-none text-sm md:text-base text-gray-800 dark:text-gray-100 placeholder-gray-400"
-                   onkeydown="if(event.key==='Enter')askAI()">
-            <button onclick="askAI()" id="aiAskBtn"
-                    class="shrink-0 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-emerald-600 text-white text-sm font-medium hover:opacity-80 active:scale-95 transition disabled:opacity-50">
-                提问
-            </button>
+    <!-- 2. 核心提问卡片 -->
+    <main class="assistant-main">
+        <div class="search-card">
+            <div class="input-wrapper">
+                <textarea id="recipeQuery" class="query-input" rows="1"
+                          placeholder="比如：有没有 20 分钟能做完的家常快手菜？"
+                          oninput="autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askAI()}"></textarea>
+                <button id="sendBtn" class="btn-send" onclick="askAI()" title="发送提问">
+                    <span>提问</span>
+                    <svg class="send-icon" viewBox="0 0 24 24" width="15" height="15">
+                        <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 推荐问题 Chips（输入框下方） -->
+            <div class="quick-chips">
+                <span class="chips-label">试试这样问：</span>
+                <button class="chip-item" onclick="quickAsk('有什么快手菜？')">有什么快手菜？</button>
+                <button class="chip-item" onclick="quickAsk('西红柿炒鸡蛋怎么做？')">西红柿炒鸡蛋怎么做？</button>
+                <button class="chip-item" onclick="quickAsk('推荐一道家常菜')">推荐一道家常菜</button>
+                <button class="chip-item warning" onclick="quickAsk('美国总统是谁？')">测试越界问题</button>
+            </div>
         </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-            <button onclick="quickAsk('有什么快手菜？')" class="text-[11px] px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition">有什么快手菜？</button>
-            <button onclick="quickAsk('西红柿炒鸡蛋怎么做？')" class="text-[11px] px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition">西红柿炒鸡蛋怎么做？</button>
-            <button onclick="quickAsk('推荐一道家常菜')" class="text-[11px] px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition">推荐一道家常菜</button>
-            <button onclick="quickAsk('美国总统是谁？')" class="text-[11px] px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition">测试越界问题</button>
-        </div>
-    </div>
 
-    <!-- 回答区 -->
-    <div id="aiAnswer" class="mt-8"></div>
+        <!-- 3. 对话历史（问题气泡 + AI 回答卡片，逐条追加） -->
+        <div id="chatHistory"></div>
 
-    <div class="text-center mt-12">
-        <p class="text-[11px] text-gray-400 dark:text-gray-500">食谱库会持续扩充 · 新增食谱后在管理后台重建索引</p>
-    </div>
+        <!-- 4. 底部说明 -->
+        <footer class="assistant-footer">
+            💡 食谱库会持续补充 · 新增食谱后在管理后台重建索引
+        </footer>
+    </main>
 </div>
 
 <script>
-    const aiAnswer = document.getElementById('aiAnswer');
-    const aiInput = document.getElementById('aiQuestion');
-    const aiBtn = document.getElementById('aiAskBtn');
+    // 提问框自动增高
+    function autoGrow(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
 
     function quickAsk(q) {
-        aiInput.value = q;
+        document.getElementById('recipeQuery').value = q;
+        autoGrow(document.getElementById('recipeQuery'));
         askAI();
     }
 
     async function askAI() {
-        const q = aiInput.value.trim();
-        if (!q || aiBtn.disabled) return;
-        aiBtn.disabled = true;
-        aiAnswer.innerHTML = '<div class="flex items-center gap-3 justify-center py-10 text-gray-400"><div class="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div><span class="text-sm">正在翻食谱库…</span></div>';
+        const input = document.getElementById('recipeQuery');
+        const btn = document.getElementById('sendBtn');
+        const q = input.value.trim();
+        if (!q || btn.disabled) return;
+
+        // 追加用户问题气泡
+        const chat = document.getElementById('chatHistory');
+        chat.insertAdjacentHTML('beforeend',
+            `<div class="user-msg">${esc(q)}</div>`);
+        input.value = '';
+        autoGrow(input);
+
+        // 追加"思考中"卡片
+        const cardId = 'card' + Date.now();
+        chat.insertAdjacentHTML('beforeend', `
+            <div class="response-card" id="${cardId}">
+                <div class="response-header">
+                    <span class="bot-avatar">🤖</span>
+                    <span class="bot-name">食谱助手大厨</span>
+                    <span class="status-tag loading">实时检索中…</span>
+                </div>
+                <div class="response-content" style="color:#9ca3af;font-size:13px;">正在翻食谱库…</div>
+            </div>`);
+        chat.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        btn.disabled = true;
         try {
             const res = await fetch('/api/ai/ask', {
                 method: 'POST',
@@ -65,67 +356,66 @@
                 body: JSON.stringify({ question: q })
             });
             const data = await res.json();
-            if (!res.ok) {
-                aiAnswer.innerHTML = `<div class="text-center py-10 text-sm text-red-500">${data.detail || '服务暂时不可用'}</div>`;
-                return;
-            }
-            renderAnswer(data.answer, data.sources || []);
+            if (!res.ok) throw new Error(data.detail || '服务暂时不可用');
+            renderAnswer(cardId, data.answer, data.sources || []);
         } catch (e) {
-            aiAnswer.innerHTML = '<div class="text-center py-10 text-sm text-red-500">网络错误，请重试</div>';
+            renderError(cardId, e.message || '网络错误，请重试');
         } finally {
-            aiBtn.disabled = false;
+            btn.disabled = false;
         }
     }
 
-    function renderAnswer(a, sources) {
-        if (!a || typeof a !== 'object') {
-            aiAnswer.innerHTML = '<div class="text-center py-10 text-sm text-gray-400">AI 没有返回有效内容，请重试</div>';
-            return;
-        }
-        const type = a.type;
-        if (type === 'refuse' || type === 'not_found' || type === 'parse_error') {
-            aiAnswer.innerHTML = `
-                <div class="admin-panel p-8 rounded-3xl text-center">
-                    <div class="text-3xl mb-3">${type === 'refuse' ? '🙅' : type === 'not_found' ? '🔍' : '😵'}</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">${esc(a.message || '')}</p>
-                </div>`;
-            return;
-        }
-        // recipe / recipes
-        const list = type === 'recipe' ? [a] : (Array.isArray(a.name) ? a.name.map(n => ({...a, name: n})) : [a]);
-        let html = '';
-        for (const r of list) {
-            html += `
-            <div class="admin-panel rounded-3xl overflow-hidden mb-6">
-                <div class="px-6 py-5 border-b border-gray-100 dark:border-white/5 flex items-start justify-between gap-3">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">${esc(r.name || '')}</h2>
-                        <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
-                            <span class="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">难度：${esc(r.difficulty || '-')}</span>
-                            <span class="px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">⏱ ${esc(r.time || '-')}</span>
-                        </div>
-                    </div>
+    function renderAnswer(cardId, a, sources) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        card.querySelector('.status-tag').className = 'status-tag';
+        card.querySelector('.status-tag').textContent = '✓ 已找到';
+
+        const content = card.querySelector('.response-content');
+        const type = a && typeof a === 'object' ? a.type : 'parse_error';
+
+        if (type === 'refuse') {
+            card.querySelector('.status-tag').textContent = '🙅 拒绝回答';
+            content.innerHTML = `<p class="msg-tip">${esc(a.message || '')}</p>`;
+        } else if (type === 'not_found') {
+            card.querySelector('.status-tag').textContent = '🔍 未找到';
+            content.innerHTML = `<p class="msg-tip">${esc(a.message || '')}</p>`;
+        } else if (type === 'parse_error') {
+            card.querySelector('.status-tag').textContent = '😵 出错了';
+            content.innerHTML = `<p class="msg-tip">AI 输出解析失败，请重试</p>`;
+        } else {
+            const list = type === 'recipe' ? [a] : (Array.isArray(a.name) ? a.name.map(n => ({ ...a, name: n })) : [a]);
+            content.innerHTML = list.map(r => `
+                <h3 class="recipe-name">${esc(r.name || '')}</h3>
+                <div class="recipe-tags">
+                    <span class="tag-pill">难度：${esc(r.difficulty || '-')}</span>
+                    <span class="tag-pill">⏱ ${esc(r.time || '-')}</span>
                 </div>
-                <div class="px-6 py-5">
-                    <p class="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">食材</p>
-                    <div class="flex flex-wrap gap-2 mb-6">
-                        ${(r.ingredients || []).map(i => `<span class="text-xs px-3 py-1.5 rounded-full bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300">${esc(i)}</span>`).join('')}
-                    </div>
-                    <p class="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">步骤</p>
-                    <ol class="space-y-2.5">
-                        ${(r.steps || []).map((s, i) => `<li class="flex gap-3 text-sm text-gray-700 dark:text-gray-300"><span class="shrink-0 w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center mt-0.5">${i + 1}</span><span>${esc(s)}</span></li>`).join('')}
-                    </ol>
+                <div class="section-label">食材</div>
+                <div class="ingredients">
+                    ${(r.ingredients || []).map(i => `<span class="ingredient-pill">${esc(i)}</span>`).join('')}
                 </div>
-            </div>`;
+                <div class="section-label">步骤</div>
+                <ol class="steps">
+                    ${(r.steps || []).map((s, i) => `<li><span class="step-num">${i + 1}</span><span>${esc(s)}</span></li>`).join('')}
+                </ol>`).join('');
+            if (sources.length) {
+                content.insertAdjacentHTML('beforeend',
+                    `<div class="ref-sources">📚 参考：${sources.map(s => esc(s.split(/[\\\\/]/).pop())).join('、')}</div>`);
+            }
         }
-        const srcHtml = sources.length
-            ? `<p class="text-center text-[11px] text-gray-400 dark:text-gray-500 mb-6">📚 参考来源：${sources.map(s => esc(s.split(/[\\\\/]/).pop())).join('、')}</p>`
-            : '';
-        aiAnswer.innerHTML = srcHtml + html;
+    }
+
+    function renderError(cardId, msg) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        card.querySelector('.status-tag').className = 'status-tag';
+        card.querySelector('.status-tag').textContent = '❌ 出错';
+        card.querySelector('.response-content').innerHTML = `<p class="msg-tip" style="color:#dc2626;">${esc(msg)}</p>`;
     }
 
     function esc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 </script>
 {% endblock %}
