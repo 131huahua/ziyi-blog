@@ -257,6 +257,57 @@
     html.dark .msg-tip { color: #d1d5db; }
     .ref-sources { margin-top: 12px; font-size: 11px; color: #9ca3af; }
 
+    /* 对话工具栏：计数 + 清空 */
+    .chat-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 24px;
+        margin-bottom: 4px;
+        padding: 8px 4px;
+    }
+    .chat-count { font-size: 12px; color: #9ca3af; font-weight: 600; letter-spacing: 0.5px; }
+    html.dark .chat-count { color: #6b7280; }
+    .chat-clear-btn {
+        font-size: 11px;
+        color: #9ca3af;
+        background: transparent;
+        border: 1px solid #e5e7eb;
+        padding: 4px 12px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+    }
+    html.dark .chat-clear-btn { border-color: rgba(255, 255, 255, 0.1); color: #6b7280; }
+    .chat-clear-btn:hover { color: #dc2626; border-color: rgba(220, 38, 38, 0.35); background: rgba(220, 38, 38, 0.05); }
+    html.dark .chat-clear-btn:hover { color: #f87171; border-color: rgba(248, 113, 113, 0.35); background: rgba(248, 113, 113, 0.08); }
+
+    /* 回答卡片折叠按钮 */
+    .collapse-btn {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid #e5e7eb;
+        color: #9ca3af;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    html.dark .collapse-btn { border-color: rgba(255, 255, 255, 0.12); }
+    .collapse-btn:hover { color: #0c4a3e; border-color: rgba(12, 74, 62, 0.3); }
+    html.dark .collapse-btn:hover { color: #6ee7b7; border-color: rgba(16, 185, 129, 0.3); }
+    .response-card .response-content.collapsed { display: none; }
+    .collapse-btn .arrow { display: inline-block; transition: transform 0.2s ease; }
+    .response-card.collapsed .collapse-btn .arrow { transform: rotate(-90deg); }
+
     /* 底部 Tip */
     .assistant-footer { text-align: center; margin-top: 32px; font-size: 12px; color: #9ca3af; }
 </style>
@@ -300,6 +351,10 @@
         </div>
 
         <!-- 3. 对话历史（问题气泡 + AI 回答卡片，逐条追加） -->
+        <div id="chatToolbar" class="chat-toolbar" style="display:none;">
+            <span id="chatCount" class="chat-count">💬 对话</span>
+            <button onclick="clearChat()" class="chat-clear-btn" title="清空全部对话">🗑 清空对话</button>
+        </div>
         <div id="chatHistory"></div>
 
         <!-- 4. 底部说明 -->
@@ -335,6 +390,11 @@
         input.value = '';
         autoGrow(input);
 
+        // 显示对话工具栏 + 更新轮数
+        const toolbar = document.getElementById('chatToolbar');
+        toolbar.style.display = 'flex';
+        document.getElementById('chatCount').textContent = '💬 对话（' + Math.ceil(chat.children.length / 2) + ' 轮）';
+
         // 追加"思考中"卡片
         const cardId = 'card' + Date.now();
         chat.insertAdjacentHTML('beforeend', `
@@ -343,6 +403,7 @@
                     <span class="bot-avatar">🤖</span>
                     <span class="bot-name">食谱助手大厨</span>
                     <span class="status-tag loading">实时检索中…</span>
+                    <button class="collapse-btn" onclick="toggleCard(this)" title="折叠"><span class="arrow">▼</span></button>
                 </div>
                 <div class="response-content" style="color:#9ca3af;font-size:13px;">正在翻食谱库…</div>
             </div>`);
@@ -412,6 +473,20 @@
         card.querySelector('.status-tag').className = 'status-tag';
         card.querySelector('.status-tag').textContent = '❌ 出错';
         card.querySelector('.response-content').innerHTML = `<p class="msg-tip" style="color:#dc2626;">${esc(msg)}</p>`;
+    }
+
+    // 折叠/展开回答卡片
+    function toggleCard(btn) {
+        const card = btn.closest('.response-card');
+        card.classList.toggle('collapsed');
+        btn.title = card.classList.contains('collapsed') ? '展开' : '折叠';
+    }
+
+    // 清空全部对话
+    function clearChat() {
+        if (!confirm('确定清空全部对话？')) return;
+        document.getElementById('chatHistory').innerHTML = '';
+        document.getElementById('chatToolbar').style.display = 'none';
     }
 
     function esc(s) {
