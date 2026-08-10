@@ -58,6 +58,16 @@
                     <button type="button" id="previewTab" class="px-3 py-1 rounded-full bg-gray-100 text-gray-500 hover:text-gray-900 transition">预览</button>
                 </div>
             </div>
+            <!-- AI 修改工具栏 -->
+            <div class="flex flex-wrap items-center gap-2 mt-3">
+                <span class="text-[11px] font-bold tracking-widest text-emerald-700/60 dark:text-emerald-300/60 uppercase">🤖 AI</span>
+                <button type="button" onclick="aiModify('润色')" class="ai-btn">✨ 润色</button>
+                <button type="button" onclick="aiModify('扩写')" class="ai-btn">📝 扩写</button>
+                <button type="button" onclick="aiModify('精简')" class="ai-btn">✂️ 精简</button>
+                <button type="button" onclick="aiModify('起标题')" class="ai-btn">🏷 起标题</button>
+                <span class="text-[10px] text-gray-400 ml-1">选中文字则只改选中部分，否则改全文</span>
+            </div>
+            <style>.ai-btn{font-size:11px;padding:4px 12px;border-radius:9999px;background:#f0fdf4;color:#047857;border:1px solid #a7f3d0;transition:all .15s}.ai-btn:hover{background:#a7f3d0}.ai-btn:disabled{opacity:.5;cursor:not-allowed}.dark .ai-btn{background:rgba(16,185,129,.08);color:#6ee7b7;border-color:rgba(16,185,129,.25)}.dark .ai-btn:hover{background:rgba(16,185,129,.18)}</style>
             <textarea id="mdEditor" name="content" placeholder="# 标题&#10;&#10;开始写作..."
                       class="admin-input font-mono text-sm leading-relaxed min-h-[340px]">{{ post.content if post else '' }}</textarea>
             <div id="mdPreview" class="hidden article-content admin-preview p-6 rounded-2xl border border-gray-100"></div>
@@ -113,6 +123,39 @@
         };
         editTab.addEventListener('click', showEdit);
         previewTab.addEventListener('click', showPreview);
+    }
+
+    // AI 修改：润色 / 扩写 / 精简 / 起标题（选中文字只改选中部分，否则改全文）
+    async function aiModify(instruction) {
+        const editor = document.getElementById('mdEditor');
+        if (!editor) return;
+        const start = editor.selectionStart, end = editor.selectionEnd;
+        const hasSelection = start !== end;
+        const selected = hasSelection ? editor.value.substring(start, end) : editor.value;
+        if (!selected.trim()) { alert('正文为空，先写点内容再让 AI 帮忙'); return; }
+        const btns = document.querySelectorAll('.ai-btn');
+        btns.forEach(b => b.disabled = true);
+        try {
+            const res = await fetch('/api/ai/rewrite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: selected, instruction })
+            });
+            const data = await res.json();
+            if (!res.ok) { alert(data.detail || 'AI 调用失败'); return; }
+            if (hasSelection) {
+                editor.value = editor.value.slice(0, start) + data.text + editor.value.slice(end);
+                editor.selectionStart = start;
+                editor.selectionEnd = start + data.text.length;
+            } else {
+                editor.value = data.text;
+            }
+            editor.focus();
+        } catch (e) {
+            alert('网络错误，请重试');
+        } finally {
+            btns.forEach(b => b.disabled = false);
+        }
     }
 </script>
 {% endblock %}

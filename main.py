@@ -300,8 +300,18 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request, name="admin.html",
         context={"logged_in": True, "posts": posts, "stats": stats,
-                 "config": config, "cloud_files": cloud_files},
+                 "config": config, "cloud_files": cloud_files,
+                 "ai_status": _ai_status()},
     )
+
+
+def _ai_status():
+    """AI 模块健康状态（懒加载，失败不影响后台）"""
+    try:
+        from ai_recipe import rag
+        return rag.status()
+    except Exception:
+        return {"configured": False, "index_exists": False, "last_error": None}
 
 
 @app.post("/admin/login")
@@ -599,6 +609,7 @@ def sitemap(request: Request, db: Session = Depends(get_db)):
         f"<url><loc>{base}/moments</loc></url>",
         f"<url><loc>{base}/notes</loc></url>",
         f"<url><loc>{base}/about</loc></url>",
+        f"<url><loc>{base}/recipes</loc></url>",
     ]
     for p in db.exec(select(Post)).all():
         urls.append(f"<url><loc>{base}/post/{p.id}</loc></url>")
@@ -635,3 +646,60 @@ def create_comment(
         db.add(Comment(post_id=post_id, name=name, content=content))
         db.commit()
     return RedirectResponse(f"/post/{post_id}#comments", status_code=303)
+
+
+# ================= AI 食谱助手 + 管理界面 AI 改文章 =================
+# 依赖: ai_recipe/ 模块（LangChain RAG + 提示词工程）
+# 配置: .env 中 CHAT_API_KEY / EMBEDDING_API_KEY（详见 ai_recipe/config.py）
+
+from pydantic import BaseModel  # noqa: E402
+
+
+class AiAskRequest(BaseModel):
+    question: str
+
+
+class AiRewriteRequest(BaseModel):
+    text: str
+    instruction: str = "润色"
+
+
+@app.get("/recipes", response_class=HTMLResponse)
+def recipes_page(request: Request):
+    """食谱问答页面（公开）"""
+    from ai_recipe import rag
+    return templates.TemplateResponse(
+        request=request, name="recipes.html",
+        context={"ai_status": rag.status()},
+    )
+
+
+@app.post("/api/ai/ask")
+def ai_ask(req: AiAskRequest):
+    """食谱问答 API：POST {"question": "..."} → {answer, sources}（公开，供食谱页调用）"""
+    from ai_recipe import rag
+    try:
+        return rag.ask(req.question)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.post("/api/ai/rewrite")
+def ai_rewrite(req: AiRewriteRequest, request: Request):
+    """管理界面 AI 改文章：润色/扩写/精简/起标题（需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import rewrite as ai_rw
+    try:
+        return {"text": ai_rw.rewrite(req.text, req.instruction)}
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.post("/api/ai/ingest")
+def ai_ingest(request: Request):
+    """重建食谱索引（管理界面按钮调用，需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import rag
+    return rag.rebuild()

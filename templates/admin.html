@@ -53,6 +53,7 @@
         <button onclick="switchTab('posts')" id="tab-btn-posts" class="flex-1 min-w-[100px] py-2.5 rounded-xl text-gray-600 transition admin-tab-active">📄 文章管理</button>
         <button onclick="switchTab('site-settings')" id="tab-btn-site-settings" class="flex-1 min-w-[110px] py-2.5 rounded-xl text-gray-600 transition">⚙️ 站点设置</button>
         <button onclick="switchTab('cloud')" id="tab-btn-cloud" class="flex-1 min-w-[100px] py-2.5 rounded-xl text-gray-600 transition">📦 私人网盘</button>
+        <button onclick="switchTab('ai')" id="tab-btn-ai" class="flex-1 min-w-[100px] py-2.5 rounded-xl text-gray-600 transition">🤖 AI 助手</button>
     </div>
 
     <!-- Tab 1：文章管理 -->
@@ -295,6 +296,33 @@
                 {% endfor %}
             </div>
         </div>
+    <!-- Tab 4：AI 助手 -->
+    <div id="tab-ai" class="tab-content hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="admin-panel p-6">
+                <h3 class="text-sm font-bold text-gray-900 mb-1">🍳 食谱 AI 助手</h3>
+                <p class="text-xs text-gray-400 mb-4 leading-relaxed">LangChain RAG：把 <code class="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded">recipes/</code> 目录下的食谱 Markdown 向量化，访客在食谱页提问时检索回答。<br>新增/修改食谱后点下面的按钮重建索引。</p>
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.configured else 'bg-amber-50 text-amber-700' }}">{{ '● AI 已配置' if ai_status.configured else '● AI 未配置（.env 缺 Key）' }}</span>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.index_exists else 'bg-gray-100 text-gray-500' }}">{{ '● 索引已建立' if ai_status.index_exists else '● 索引未建立' }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="rebuildIndex(this)" class="admin-btn-primary px-6">🔄 重建食谱索引</button>
+                    <a href="/recipes" target="_blank" class="text-xs text-emerald-700 hover:underline">查看食谱页 →</a>
+                </div>
+                <p id="aiIndexMsg" class="text-xs mt-3 text-gray-400"></p>
+            </div>
+            <div class="admin-panel p-6">
+                <h3 class="text-sm font-bold text-gray-900 mb-1">✨ 文章 AI 编辑</h3>
+                <p class="text-xs text-gray-400 leading-relaxed mb-4">在「写文章/编辑文章」页面的正文工具栏，选中文字后可一键 <b>润色 / 扩写 / 精简 / 起标题</b>，AI 修改后直接替换到编辑器，人工确认后再保存。</p>
+                <ul class="text-xs text-gray-500 space-y-1.5">
+                    <li>1️⃣ 打开「＋ 写文章」或编辑已有文章</li>
+                    <li>2️⃣ 选中想修改的段落（不选则处理全文）</li>
+                    <li>3️⃣ 点击 ✨润色 / 📝扩写 / ✂️精简 / 🏷起标题</li>
+                    <li>4️⃣ 检查 AI 结果，手动保存发布</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -304,6 +332,21 @@
         document.querySelectorAll('[id^="tab-btn-"]').forEach((el) => el.classList.remove('admin-tab-active'));
         document.getElementById('tab-' + tabName).classList.remove('hidden');
         document.getElementById('tab-btn-' + tabName).classList.add('admin-tab-active');
+    }
+    // 重建食谱索引
+    async function rebuildIndex(btn) {
+        const msg = document.getElementById('aiIndexMsg');
+        btn.disabled = true;
+        msg.textContent = '⏳ 正在向量化食谱，请稍候…';
+        try {
+            const res = await fetch('/api/ai/ingest', { method: 'POST' });
+            const data = await res.json();
+            msg.textContent = res.ok ? '✅ ' + (data.message || '重建完成') : '❌ ' + (data.detail || '失败');
+        } catch (e) {
+            msg.textContent = '❌ 网络错误';
+        } finally {
+            btn.disabled = false;
+        }
     }
     // 复制文件直链
     function copyFileUrl(path) {
