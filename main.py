@@ -675,13 +675,34 @@ def recipes_page(request: Request):
 
 
 @app.post("/api/ai/ask")
-def ai_ask(req: AiAskRequest):
-    """食谱问答 API：POST {"question": "..."} → {answer, sources}（公开，供食谱页调用）"""
-    from ai_recipe import rag
+def ai_ask(req: AiAskRequest, request: Request):
+    """食谱问答 API：POST {"question": "..."} → {answer, sources}
+
+    公开可调，但有限流：匿名每 IP 10 分钟 3 次 / 每天 20 次；
+    带 Authorization: Bearer <AI_API_TOKENS 里的 token> 每天 500 次。
+    """
+    from ai_recipe import quota, rag
+
+    ip = request.client.host if request.client else "unknown"
+    token = quota.resolve_token(request)
+    allowed, msg, _remain = quota.check_quota(ip, token)
+    if not allowed:
+        quota.record(ip, token, False)
+        raise HTTPException(status_code=429, detail=msg)
+    quota.record(ip, token, True)
     try:
         return rag.ask(req.question)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.get("/api/ai/quota")
+def ai_quota(request: Request):
+    """AI 用量统计（后台 AI 助手面板，需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import quota
+    return quota.today_stats()
 
 
 @app.post("/api/ai/rewrite")

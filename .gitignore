@@ -32,3 +32,6 @@ deploy/
 # 涓存椂鏂囦欢
 tmp_*.py
 mc.js
+
+# AI 用量记录（限流）
+ai_quota.db

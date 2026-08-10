@@ -361,6 +361,15 @@
                 </div>
             </div>
 
+            <!-- 用量与限制 -->
+            <div class="admin-panel p-6 lg:col-span-2">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-gray-900">📊 今日用量与限制</h3>
+                    <button onclick="loadQuota()" class="text-xs text-emerald-700 hover:underline">↻ 刷新</button>
+                </div>
+                <div id="aiQuotaBox" class="text-xs text-gray-400">加载中…</div>
+            </div>
+
             <!-- 文章 AI 编辑说明 -->
             <div class="admin-panel p-6 lg:col-span-2">
                 <h3 class="text-sm font-bold text-gray-900 mb-1">✨ 文章 AI 编辑</h3>
@@ -528,10 +537,56 @@
         }
     }
 
-    // 切到 AI Tab 时加载文档列表
+    // 用量与限制
+    async function loadQuota() {
+        const box = document.getElementById('aiQuotaBox');
+        if (!box) return;
+        try {
+            const res = await fetch('/api/ai/quota');
+            const d = await res.json();
+            if (!res.ok) { box.innerHTML = '❌ ' + (d.detail || '获取失败'); return; }
+            const L = d.limits;
+            const html = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div class="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest">今日总调用</p>
+                    <p class="text-xl font-bold text-gray-900 mt-1">${d.total} <span class="text-xs font-normal text-gray-400">次（成功 ${d.ok} / 拦截 ${d.blocked}）</span></p>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest">匿名访客限流</p>
+                    <p class="text-sm font-medium text-gray-800 mt-1">每 IP 10 分钟 ${L.anonymous_per_10min} 次 / 每天 ${L.anonymous_per_day} 次</p>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest">API Token 配额</p>
+                    <p class="text-sm font-medium text-gray-800 mt-1">每天 ${L.token_per_day} 次 / 个</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2 items-center mb-3">
+                <span class="text-[10px] text-gray-400 font-bold tracking-widest">API TOKEN</span>
+                ${d.tokens.length ? d.tokens.map(t => `<code class="text-[11px] bg-gray-900 text-emerald-300 rounded px-2 py-1 font-mono">${t.slice(0, 8)}…</code>`).join('') : '<span class="text-[11px] text-amber-600">未配置（.env 的 AI_API_TOKENS）</span>'}
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-2">按 IP 排行</p>
+                    ${d.by_ip.length ? d.by_ip.map(x => `<div class="flex justify-between text-[11px] py-1 border-b border-gray-50"><span class="font-mono">${x.ip}</span><span class="text-gray-500">${x.count} 次</span></div>`).join('') : '<p class="text-[11px] text-gray-400">今日暂无调用</p>'}
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest mb-2">按 Token 排行</p>
+                    ${d.by_token.length ? d.by_token.map(x => `<div class="flex justify-between text-[11px] py-1 border-b border-gray-50"><span class="font-mono">${x.token.slice(0, 12)}…</span><span class="text-gray-500">${x.count} 次</span></div>`).join('') : '<p class="text-[11px] text-gray-400">暂无 Token 调用</p>'}
+                </div>
+            </div>`;
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '❌ 加载失败';
+        }
+    }
+
+    // 切到 AI Tab 时加载
     document.addEventListener('DOMContentLoaded', () => {
         const aiTab = document.getElementById('tab-btn-ai');
-        if (aiTab) aiTab.addEventListener('click', loadDocs);
+        if (aiTab) {
+            aiTab.addEventListener('click', () => { loadDocs(); loadQuota(); });
+        }
     });
     // 复制文件直链
     function copyFileUrl(path) {
