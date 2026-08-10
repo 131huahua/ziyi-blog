@@ -517,7 +517,7 @@
         }
     }
 
-    // 快速测试问答
+    // 快速测试问答（v2：/api/ai/chat，带记忆和双身份）
     async function testAsk() {
         const q = document.getElementById('aiTestQ').value.trim();
         const box = document.getElementById('aiTestR');
@@ -525,13 +525,15 @@
         box.classList.remove('hidden');
         box.textContent = '⏳ 思考中…';
         try {
-            const res = await fetch('/api/ai/ask', {
+            const res = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: q })
+                body: JSON.stringify({ user_id: 'admin-test', question: q })
             });
             const data = await res.json();
-            box.textContent = res.ok ? JSON.stringify(data.answer, null, 2) : '❌ ' + (data.detail || '失败');
+            if (!res.ok) { box.textContent = '❌ ' + (data.detail || '失败'); return; }
+            const roleTag = data.role === 'nutritionist' ? '🥗 营养师小林' : '👨‍🍳 厨师老王';
+            box.textContent = roleTag + '\n' + JSON.stringify(data.answer, null, 2);
         } catch (e) {
             box.textContent = '❌ 网络错误';
         }
