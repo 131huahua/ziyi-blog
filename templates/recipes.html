@@ -180,8 +180,37 @@
         font-size: 14px;
         line-height: 1.6;
         box-shadow: 0 4px 12px rgba(12, 74, 62, 0.15);
+        position: relative;
+        padding-right: 34px;
     }
     html.dark .user-msg { background: #0f5b47; }
+    /* 单条消息删除按钮 */
+    .msg-del {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 13px;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.2s ease;
+        padding: 2px 4px;
+        border-radius: 6px;
+        line-height: 1;
+    }
+    .user-msg:hover .msg-del { opacity: 1; }
+    .msg-del:hover { color: #fff; background: rgba(255, 255, 255, 0.15); }
+    .response-card .msg-del {
+        position: static;
+        transform: none;
+        color: #9ca3af;
+        margin-left: 4px;
+    }
+    .response-card .msg-del:hover { color: #dc2626; background: rgba(220, 38, 38, 0.08); }
+    html.dark .response-card .msg-del:hover { color: #f87171; }
 
     /* AI 回答卡片 */
     .response-card {
@@ -384,16 +413,15 @@
         if (!q || btn.disabled) return;
 
         // 追加用户问题气泡
+        // 显示对话工具栏 + 更新轮数
+        updateChatCount();
+
+        // 追加用户问题气泡（带单独删除按钮）
         const chat = document.getElementById('chatHistory');
         chat.insertAdjacentHTML('beforeend',
-            `<div class="user-msg">${esc(q)}</div>`);
+            `<div class="user-msg">${esc(q)}<button class="msg-del" onclick="deleteMsg(this)" title="删除这条">✕</button></div>`);
         input.value = '';
         autoGrow(input);
-
-        // 显示对话工具栏 + 更新轮数
-        const toolbar = document.getElementById('chatToolbar');
-        toolbar.style.display = 'flex';
-        document.getElementById('chatCount').textContent = '💬 对话（' + Math.ceil(chat.children.length / 2) + ' 轮）';
 
         // 追加"思考中"卡片
         const cardId = 'card' + Date.now();
@@ -403,6 +431,7 @@
                     <span class="bot-avatar">🤖</span>
                     <span class="bot-name">食谱助手大厨</span>
                     <span class="status-tag loading">实时检索中…</span>
+                    <button class="msg-del" onclick="deleteMsg(this)" title="删除这条">✕</button>
                     <button class="collapse-btn" onclick="toggleCard(this)" title="折叠"><span class="arrow">▼</span></button>
                 </div>
                 <div class="response-content" style="color:#9ca3af;font-size:13px;">正在翻食谱库…</div>
@@ -480,6 +509,25 @@
         const card = btn.closest('.response-card');
         card.classList.toggle('collapsed');
         btn.title = card.classList.contains('collapsed') ? '展开' : '折叠';
+    }
+
+    // 单条删除对话
+    function deleteMsg(btn) {
+        btn.closest('.user-msg, .response-card').remove();
+        updateChatCount();
+    }
+
+    // 更新对话计数（无对话时隐藏工具栏）
+    function updateChatCount() {
+        const chat = document.getElementById('chatHistory');
+        const toolbar = document.getElementById('chatToolbar');
+        const rounds = Math.ceil(chat.children.length / 2);
+        if (rounds <= 0) {
+            toolbar.style.display = 'none';
+        } else {
+            toolbar.style.display = 'flex';
+            document.getElementById('chatCount').textContent = '💬 对话（' + rounds + ' 轮）';
+        }
     }
 
     // 清空全部对话
