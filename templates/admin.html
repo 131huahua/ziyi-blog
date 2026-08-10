@@ -297,58 +297,70 @@
             </div>
         </div>
     <!-- Tab 4：AI 助手 -->
+    <style>
+        /* 拖拽上传区 */
+        .ai-dropzone { border: 2px dashed #d1d5db; border-radius: 12px; padding: 22px 16px; text-align: center; cursor: pointer; background: #fafafa; transition: border-color .2s, background .2s; }
+        .ai-dropzone:hover { border-color: #0c4a3e; background: #f0fdf4; }
+        .ai-dropzone.dragover { border-color: #0c4a3e; background: #ecfdf5; }
+    </style>
     <div id="tab-ai" class="tab-content hidden">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <!-- 状态 + 重建 + 测试 -->
-            <div class="admin-panel p-6">
-                <h3 class="text-sm font-bold text-gray-900 mb-1">🍳 食谱 AI 助手</h3>
-                <p class="text-xs text-gray-400 mb-4 leading-relaxed">LangChain RAG：文档入库后自动切块向量化，访客在食谱页提问时检索回答。</p>
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.configured else 'bg-amber-50 text-amber-700' }}">{{ '● AI 已配置' if ai_status.configured else '● AI 未配置（.env 缺 Key）' }}</span>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.index_exists else 'bg-gray-100 text-gray-500' }}">{{ '● 索引已建立' if ai_status.index_exists else '● 索引未建立' }}</span>
-                    <span id="aiDocCount" class="text-[11px] px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">● 文档 …</span>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- 左栏：系统控制 + 测试问答 -->
+            <div class="flex flex-col gap-4">
+                <div class="admin-panel p-6">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">⚡ 系统控制</h3>
+                    <div class="flex items-center gap-2 mb-4 flex-wrap">
+                        <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.configured else 'bg-amber-50 text-amber-700' }}">{{ '● AI 已配置' if ai_status.configured else '● AI 未配置（.env 缺 Key）' }}</span>
+                        <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.index_exists else 'bg-gray-100 text-gray-500' }}">{{ '● 索引已建立' if ai_status.index_exists else '● 索引未建立' }}</span>
+                        <span id="aiDocCount" class="text-[11px] px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">● 文档 …</span>
+                    </div>
+                    <button onclick="rebuildIndex(this)" class="admin-btn-primary w-full justify-center">🔄 重建全量索引</button>
+                    <p id="aiIndexMsg" class="text-xs mt-3 text-gray-400"></p>
+                    <a href="/recipes" target="_blank" class="text-xs text-emerald-700 hover:underline block mt-2">查看前台食谱页 →</a>
                 </div>
-                <div class="flex items-center gap-3 mb-4">
-                    <button onclick="rebuildIndex(this)" class="admin-btn-primary px-6">🔄 重建索引</button>
-                    <a href="/recipes" target="_blank" class="text-xs text-emerald-700 hover:underline">查看食谱页 →</a>
+
+                <div class="admin-panel p-6">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">🧪 快速测试问答</h3>
+                    <textarea id="aiTestQ" rows="3" placeholder="输入测试问题，按 Enter 提交…"
+                              class="admin-input w-full resize-none"
+                              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();testAsk();}"></textarea>
+                    <div class="flex justify-end mt-2">
+                        <button onclick="testAsk()" class="admin-btn-primary px-6">提问</button>
+                    </div>
+                    <div id="aiTestR" class="hidden mt-3 text-[11px] bg-gray-900 text-emerald-300 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-64"></div>
                 </div>
-                <p id="aiIndexMsg" class="text-xs mb-4 text-gray-400"></p>
-                <!-- 快速测试 -->
-                <label class="admin-label mb-1">🧪 快速测试问答</label>
-                <div class="flex items-center gap-2">
-                    <input id="aiTestQ" type="text" placeholder="比如：哈尔滨红肠怎么做？" class="admin-input flex-1">
-                    <button onclick="testAsk()" class="admin-btn-primary px-4 shrink-0">提问</button>
-                </div>
-                <pre id="aiTestR" class="mt-3 hidden text-[11px] bg-gray-900 text-emerald-300 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-64"></pre>
             </div>
 
-            <!-- 上传文档 -->
-            <div class="admin-panel p-6">
-                <h3 class="text-sm font-bold text-gray-900 mb-1">📤 上传文档入库</h3>
-                <p class="text-xs text-gray-400 mb-3 leading-relaxed">支持 <b>PDF / Word(docx) / Markdown / TXT</b>，自动拆解成向量（上限 20MB）。扫描版 PDF（纯图片）无法提取文字。</p>
-                <div class="flex flex-col gap-3">
-                    <input id="aiDocFile" type="file" accept=".pdf,.docx,.md,.markdown,.txt"
-                           class="text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-50 file:text-emerald-800 file:text-xs file:font-medium hover:file:bg-emerald-100 transition">
-                    <div class="flex items-center gap-3">
-                        <button onclick="uploadDoc()" id="aiUploadBtn" class="admin-btn-primary px-6">🚀 上传并入库</button>
-                        <span id="aiUploadMsg" class="text-xs text-gray-400"></span>
+            <!-- 右栏：上传 + 文档列表 -->
+            <div class="flex flex-col gap-4">
+                <div class="admin-panel p-6">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">📤 上传文档入库</h3>
+                    <div id="aiDropZone" class="ai-dropzone" onclick="document.getElementById('aiDocFile').click()">
+                        <input id="aiDocFile" type="file" accept=".pdf,.docx,.md,.markdown,.txt" class="hidden" onchange="onFilePicked()">
+                        <div class="text-3xl mb-2">📁</div>
+                        <p id="aiDropText" class="text-xs text-gray-500">拖拽文件至此，或点击选择文件</p>
+                        <p id="aiDropFileName" class="hidden text-xs text-emerald-700 font-medium mt-1"></p>
+                        <span class="text-[10px] text-gray-400 mt-2 block">支持 PDF / Word(docx) / Markdown / TXT · 上限 20MB</span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-3">
+                        <button onclick="uploadDoc()" id="aiUploadBtn" class="admin-btn-primary flex-1 justify-center" disabled>🚀 上传并入库</button>
+                        <span id="aiUploadMsg" class="text-xs text-gray-400 flex-1"></span>
+                    </div>
+                </div>
+
+                <div class="admin-panel p-6 flex-1">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-gray-900">📚 已入库文档（<span id="aiDocTotal">0</span>）</h3>
+                        <button onclick="loadDocs()" class="text-xs text-emerald-700 hover:underline">↻ 刷新</button>
+                    </div>
+                    <div id="aiDocList" class="space-y-2 max-h-72 overflow-y-auto">
+                        <p class="text-xs text-gray-400 py-4 text-center">加载中…</p>
                     </div>
                 </div>
             </div>
 
-            <!-- 已入库文档列表 -->
-            <div class="admin-panel p-6 md:col-span-2">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-gray-900">📚 已入库文档（<span id="aiDocTotal">0</span>）</h3>
-                    <button onclick="loadDocs()" class="text-xs text-emerald-700 hover:underline">↻ 刷新</button>
-                </div>
-                <div id="aiDocList" class="space-y-2">
-                    <p class="text-xs text-gray-400 py-4 text-center">加载中…</p>
-                </div>
-            </div>
-
             <!-- 文章 AI 编辑说明 -->
-            <div class="admin-panel p-6 md:col-span-2">
+            <div class="admin-panel p-6 lg:col-span-2">
                 <h3 class="text-sm font-bold text-gray-900 mb-1">✨ 文章 AI 编辑</h3>
                 <p class="text-xs text-gray-400 leading-relaxed">在「写文章/编辑文章」页面的正文工具栏，选中文字后可一键 <b>润色 / 扩写 / 精简 / 起标题</b>，AI 修改后直接替换到编辑器，人工确认后再保存。</p>
             </div>
@@ -380,7 +392,21 @@
         }
     }
 
-    // 上传文档入库
+    // 选择文件后：显示文件名 + 启用上传按钮
+    function onFilePicked() {
+        const input = document.getElementById('aiDocFile');
+        const file = input.files[0];
+        const btn = document.getElementById('aiUploadBtn');
+        const nameEl = document.getElementById('aiDropFileName');
+        const textEl = document.getElementById('aiDropText');
+        if (!file) { btn.disabled = true; nameEl.classList.add('hidden'); textEl.textContent = '拖拽文件至此，或点击选择文件'; return; }
+        nameEl.textContent = '已选择：' + file.name + '（' + (file.size / 1024).toFixed(1) + ' KB）';
+        nameEl.classList.remove('hidden');
+        textEl.textContent = '点击可重新选择';
+        btn.disabled = false;
+    }
+
+    // 上传文档入库（支持拖拽/点击选择）
     async function uploadDoc() {
         const input = document.getElementById('aiDocFile');
         const msg = document.getElementById('aiUploadMsg');
@@ -400,13 +426,32 @@
             const res = await fetch('/api/ai/upload', { method: 'POST', body: fd });
             const data = await res.json();
             msg.textContent = res.ok ? '✅ ' + (data.message || '入库成功') : '❌ ' + (data.detail || '失败');
-            if (res.ok) { input.value = ''; loadDocs(); }
+            if (res.ok) { input.value = ''; onFilePicked(); loadDocs(); }
         } catch (e) {
             msg.textContent = '❌ 网络错误';
         } finally {
             btn.disabled = false;
+            if (!input.files[0]) btn.disabled = true;
         }
     }
+
+    // 拖拽上传初始化
+    (function setupDropZone() {
+        const zone = document.getElementById('aiDropZone');
+        if (!zone) return;
+        const input = document.getElementById('aiDocFile');
+        ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
+        ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('dragover'); }));
+        zone.addEventListener('drop', e => {
+            const f = e.dataTransfer.files && e.dataTransfer.files[0];
+            if (f) {
+                const dt = new DataTransfer();
+                dt.items.add(f);
+                input.files = dt.files;
+                onFilePicked();
+            }
+        });
+    })();
 
     // 文档列表
     async function loadDocs() {
