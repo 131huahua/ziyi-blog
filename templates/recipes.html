@@ -201,6 +201,7 @@
         border-radius: 6px;
         line-height: 1;
     }
+    .user-msg .msg-del { opacity: 0.7; }
     .user-msg:hover .msg-del { opacity: 1; }
     .msg-del:hover { color: #fff; background: rgba(255, 255, 255, 0.15); }
     .response-card .msg-del {
@@ -208,6 +209,7 @@
         transform: none;
         color: #9ca3af;
         margin-left: 4px;
+        opacity: 1;   /* 回答卡片删除按钮常显（修复不可见 bug） */
     }
     .response-card .msg-del:hover { color: #dc2626; background: rgba(220, 38, 38, 0.08); }
     html.dark .response-card .msg-del:hover { color: #f87171; }
