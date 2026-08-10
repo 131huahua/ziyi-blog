@@ -678,22 +678,44 @@ def recipes_page(request: Request):
 def ai_ask(req: AiAskRequest, request: Request):
     """食谱问答 API：POST {"question": "..."} → {answer, sources}
 
-    公开可调，但有限流：匿名每 IP 10 分钟 3 次 / 每天 20 次；
-    带 Authorization: Bearer <AI_API_TOKENS 里的 token> 每天 500 次。
+    防护：来源校验（防跨站盗刷）→ 问题长度限制 → 并发限制 → 限流（
+    匿名每 IP 30 分钟 3 次/每天 10 次；带 Bearer Token 每天 20 次）。
     """
     from ai_recipe import quota, rag
 
     ip = request.client.host if request.client else "unknown"
     token = quota.resolve_token(request)
-    allowed, msg, _remain = quota.check_quota(ip, token)
-    if not allowed:
-        quota.record(ip, token, False)
-        raise HTTPException(status_code=429, detail=msg)
-    quota.record(ip, token, True)
+
+    # 1. 来源校验（仅限匿名请求；带 token 的 API 调用放行）
+    if not token:
+        ok, msg = quota.check_origin(request)
+        if not ok:
+            raise HTTPException(status_code=403, detail=msg)
+
+    # 2. 问题长度限制
+    q = (req.question or "").strip()
+    ok, msg = quota.check_question_len(q)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    # 3. 并发限制
+    if not quota.acquire_concurrent(ip):
+        raise HTTPException(status_code=429, detail="请求太密集，请等上一条回答完再问～")
     try:
-        return rag.ask(req.question)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        # 4. 限流（记录在放行后，无论问答成败都计入）
+        allowed, msg, _remain = quota.check_quota(ip, token)
+        if not allowed:
+            quota.record(ip, token, False)
+            raise HTTPException(status_code=429, detail=msg)
+        quota.record(ip, token, True)
+        try:
+            return rag.ask(q)
+        except RuntimeError as e:
+            import logging
+            logging.getLogger("ai_recipe").error("AI 问答失败: %s", e)
+            raise HTTPException(status_code=503, detail="AI 服务暂时不可用，请稍后再试")
+    finally:
+        quota.release_concurrent(ip)
 
 
 @app.get("/api/ai/quota")
@@ -714,7 +736,9 @@ def ai_rewrite(req: AiRewriteRequest, request: Request):
     try:
         return {"text": ai_rw.rewrite(req.text, req.instruction)}
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        import logging
+        logging.getLogger("ai_recipe").error("AI 润色失败: %s", e)
+        raise HTTPException(status_code=503, detail="AI 服务暂时不可用，请稍后再试")
 
 
 @app.post("/api/ai/ingest")

@@ -1,22 +1,30 @@
 """AI 接口配额：Token 鉴权 + 调用次数限制（SQLite 持久化，跨 worker 安全）
 
 规则（.env 可覆盖）：
-- 匿名（无 token）：每 IP 10 分钟 ≤3 次，每天 ≤20 次
-- 带有效 token（Authorization: Bearer xxx）：每天 ≤500 次
+- 匿名（无 token）：每 IP 30 分钟 ≤3 次，每天 ≤10 次
+- 带有效 token（Authorization: Bearer ***）：每天 ≤20 次
+- 其他防护：question 长度限制、并发限制、来源校验（见 check_request）
 """
 import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
 DB = Path(__file__).resolve().parent.parent / "ai_quota.db"
 
-NO_TOKEN_PER_WIN = int(os.getenv("AI_LIMIT_PER_10MIN", "3"))
-NO_TOKEN_PER_DAY = int(os.getenv("AI_LIMIT_PER_DAY", "20"))
-TOKEN_PER_DAY = int(os.getenv("AI_TOKEN_LIMIT_PER_DAY", "500"))
+NO_TOKEN_PER_WIN = int(os.getenv("AI_LIMIT_PER_WIN", "3"))
+NO_TOKEN_PER_DAY = int(os.getenv("AI_LIMIT_PER_DAY", "10"))
+TOKEN_PER_DAY = int(os.getenv("AI_TOKEN_LIMIT_PER_DAY", "20"))
 
-WIN_SECONDS = 600  # 10 分钟
+WIN_SECONDS = int(os.getenv("AI_LIMIT_WIN_SECONDS", "1800"))  # 30 分钟
 DAY_SECONDS = 86400
+MAX_QUESTION_LEN = int(os.getenv("AI_MAX_QUESTION_LEN", "200"))  # 问题最大长度
+MAX_CONCURRENT = int(os.getenv("AI_MAX_CONCURRENT", "2"))  # 单 IP 并发上限
+
+# 内存并发计数（跨 worker 不精确但够用，防单点刷）
+_concurrent: dict[str, int] = {}
+_lock = threading.Lock()
 
 
 def _conn() -> sqlite3.Connection:
@@ -37,11 +45,29 @@ def valid_tokens() -> set[str]:
 
 
 def resolve_token(request) -> str:
-    """从请求头提取 Bearer token"""
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:].strip()
     return ""
+
+
+def check_origin(request) -> tuple[bool, str]:
+    """来源校验：匿名浏览器请求必须来自本站（防跨站盗刷）"""
+    origin = request.headers.get("Origin", "")
+    referer = request.headers.get("Referer", "")
+    if origin:
+        if "ziyizhang.cn" not in origin and "localhost" not in origin and "127.0.0.1" not in origin:
+            return False, "来源不被允许"
+    elif referer:
+        if "ziyizhang.cn" not in referer and "localhost" not in referer and "127.0.0.1" not in referer:
+            return False, "来源不被允许"
+    return True, ""
+
+
+def check_question_len(question: str) -> tuple[bool, str]:
+    if len(question) > MAX_QUESTION_LEN:
+        return False, f"问题太长啦（最多 {MAX_QUESTION_LEN} 字），精简一下再问～"
+    return True, ""
 
 
 def check_quota(ip: str, token: str) -> tuple[bool, str, int]:
@@ -50,7 +76,7 @@ def check_quota(ip: str, token: str) -> tuple[bool, str, int]:
     conn = _conn()
     if token and token in valid_tokens():
         n = conn.execute(
-            "SELECT COUNT(*) FROM ai_usage WHERE token=? AND ts>?", (token, now - DAY_SECONDS)
+            "SELECT COUNT(*) FROM ai_usage WHERE token=*** AND ts>?", (token, now - DAY_SECONDS)
         ).fetchone()[0]
         remain = max(TOKEN_PER_DAY - n, 0)
         if n >= TOKEN_PER_DAY:
@@ -66,14 +92,32 @@ def check_quota(ip: str, token: str) -> tuple[bool, str, int]:
     remain = max(NO_TOKEN_PER_DAY - n_day, 0)
 
     if n_win >= NO_TOKEN_PER_WIN:
-        return False, f"问得太频繁啦，10 分钟内最多 {NO_TOKEN_PER_WIN} 次，歇口气再来～", remain
+        return False, f"问得太频繁啦，30 分钟内最多 {NO_TOKEN_PER_WIN} 次，歇口气再来～", remain
     if n_day >= NO_TOKEN_PER_DAY:
         return False, f"今天问得够多啦（上限 {NO_TOKEN_PER_DAY} 次），明天再来～", 0
     return True, f"今日剩余 {remain} 次", remain
 
 
+def acquire_concurrent(ip: str) -> bool:
+    """获取并发名额（进行中的请求数限制）"""
+    with _lock:
+        cur = _concurrent.get(ip, 0)
+        if cur >= MAX_CONCURRENT:
+            return False
+        _concurrent[ip] = cur + 1
+        return True
+
+
+def release_concurrent(ip: str):
+    with _lock:
+        cur = _concurrent.get(ip, 0)
+        if cur <= 1:
+            _concurrent.pop(ip, None)
+        else:
+            _concurrent[ip] = cur - 1
+
+
 def record(ip: str, token: str, ok: bool):
-    """记录一次调用（放行后调用，无论问答成败都计入）"""
     conn = _conn()
     conn.execute(
         "INSERT INTO ai_usage (ip, token, ts, ok) VALUES (?,?,?,?)",
@@ -96,7 +140,6 @@ def today_stats() -> dict:
         "SELECT token, COUNT(*) FROM ai_usage WHERE ts>? AND token != '' GROUP BY token ORDER BY COUNT(*) DESC LIMIT 10",
         (day_start,),
     ).fetchall()
-    # 清理 30 天前的数据
     conn.execute("DELETE FROM ai_usage WHERE ts<?", (time.time() - 30 * DAY_SECONDS,))
     conn.commit()
     return {
@@ -107,8 +150,11 @@ def today_stats() -> dict:
         "by_token": [{"token": t, "count": c} for t, c in by_token],
         "tokens": sorted(valid_tokens()),
         "limits": {
-            "anonymous_per_10min": NO_TOKEN_PER_WIN,
+            "window_seconds": WIN_SECONDS,
+            "anonymous_per_window": NO_TOKEN_PER_WIN,
             "anonymous_per_day": NO_TOKEN_PER_DAY,
             "token_per_day": TOKEN_PER_DAY,
+            "max_question_len": MAX_QUESTION_LEN,
+            "max_concurrent": MAX_CONCURRENT,
         },
     }
