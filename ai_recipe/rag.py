@@ -165,7 +165,11 @@ def ask(question: str) -> dict:
 
     try:
         vectorstore = _get_vectorstore()
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+        # MMR 检索：提升结果多样性，避免相似片段扎堆漏掉目标菜谱
+        retriever = vectorstore.as_retriever(
+            search_type="mmr",
+            search_kwargs={"k": 8, "fetch_k": 20, "lambda_mult": 0.7},
+        )
 
         from langchain_core.output_parsers import StrOutputParser
 
