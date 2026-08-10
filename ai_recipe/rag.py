@@ -211,6 +211,11 @@ def _sanitize_user_id(user_id: str) -> str:
     return "anonymous"
 
 
+def _source_name(source: str) -> str:
+    """从路径提取文件名（兼容 Windows \\ 与 Unix / 分隔符）"""
+    return str(source).replace("\\", "/").split("/")[-1]
+
+
 def _detect_role(user_id: str, question: str) -> str:
     """根据用户消息自动切换身份（并写回画像）"""
     from .memory import get_profile, update_profile
@@ -371,7 +376,7 @@ def chat(user_id: str, question: str, role: str | None = None) -> dict:
         return {
             "answer": parsed,
             # 来源脱敏：只返回文件名，不暴露服务器绝对路径
-            "sources": sorted({Path(d.metadata.get("source", "")).name for d in docs}),
+            "sources": sorted({_source_name(d.metadata.get("source", "")) for d in docs}),
             "role": role,
         }
     except Exception as e:
