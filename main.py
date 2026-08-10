@@ -786,6 +786,41 @@ def ai_chat_clear(req: AiChatClearRequest, request: Request):
     return {"status": "ok"}
 
 
+class AiRoleRequest(BaseModel):
+    user_id: str = "anonymous"
+    role: str = "chef"  # chef（厨师老王）/ nutritionist（营养师小林）
+
+
+@app.post("/api/ai/role")
+def ai_role_switch(req: AiRoleRequest, request: Request):
+    """切换身份：chef（厨师老王）/ nutritionist（营养师小林），写入访客画像（长期生效）
+
+    body: {"user_id": "...", "role": "chef" | "nutritionist"}
+    """
+    from ai_recipe import quota
+
+    if not quota.resolve_token(request):
+        ok, msg = quota.check_origin(request)
+        if not ok:
+            raise HTTPException(status_code=403, detail=msg)
+
+    role = (req.role or "chef").strip().lower()
+    if role not in ("chef", "nutritionist"):
+        raise HTTPException(status_code=400, detail="role 只能是 chef 或 nutritionist")
+
+    from ai_recipe.memory import update_profile
+    user_id = (req.user_id or "anonymous").strip()[:64]
+    update_profile(user_id, role=role)
+    return {"status": "ok", "role": role}
+
+
+@app.get("/api/ai/role/{user_id}")
+def ai_role_get(user_id: str, request: Request):
+    """查询当前身份（前端加载时同步按钮状态）"""
+    from ai_recipe.memory import get_profile
+    return {"role": get_profile(user_id.strip()[:64]).get("role", "chef")}
+
+
 @app.get("/api/ai/quota")
 def ai_quota(request: Request):
     """AI 用量统计（后台 AI 助手面板，需登录）"""

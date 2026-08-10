@@ -65,6 +65,46 @@
     .assistant-subtitle .divider { color: #d1d5db; margin: 0 4px; }
     html.dark .assistant-subtitle .divider { color: #374151; }
 
+    /* 身份切换胶囊 */
+    .role-switch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 30px;
+        padding: 5px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    html.dark .role-switch { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.08); }
+    .role-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        background: transparent;
+        color: #6b7280;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 18px;
+        border-radius: 24px;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        font-family: inherit;
+    }
+    html.dark .role-btn { color: #9ca3af; }
+    .role-btn:hover { color: #0c4a3e; background: rgba(12, 74, 62, 0.06); }
+    html.dark .role-btn:hover { color: #6ee7b7; background: rgba(16, 185, 129, 0.08); }
+    .role-btn.active {
+        background: #0c4a3e;
+        color: #fff;
+        box-shadow: 0 3px 10px rgba(12, 74, 62, 0.25);
+    }
+    html.dark .role-btn.active { background: #0f5b47; color: #fff; }
+    .role-btn.active:hover { color: #fff; background: #116252; }
+    html.dark .role-btn.active:hover { background: #116252; }
+
     /* 主交互卡片 */
     .assistant-main { width: 100%; }
     .search-card {
@@ -356,7 +396,13 @@
         {% endif %}
     </header>
 
-    <!-- 2. 核心提问卡片 -->
+    <!-- 2. 身份切换：厨师老王 / 营养师小林 -->
+    <div class="role-switch" role="tablist" aria-label="切换身份">
+        <button class="role-btn active" id="roleChef" data-role="chef" onclick="switchRole('chef')">👨‍🍳 厨师老王</button>
+        <button class="role-btn" id="roleNutri" data-role="nutritionist" onclick="switchRole('nutritionist')">🥗 营养师小林</button>
+    </div>
+
+    <!-- 3. 核心提问卡片 -->
     <main class="assistant-main">
         <div class="search-card">
             <div class="input-wrapper">
@@ -406,6 +452,46 @@
         }
         return id;
     }
+
+    // 身份切换按钮高亮
+    function setRoleUI(role) {
+        document.getElementById('roleChef').classList.toggle('active', role !== 'nutritionist');
+        document.getElementById('roleNutri').classList.toggle('active', role === 'nutritionist');
+    }
+
+    // 显式切换身份（厨师老王 / 营养师小林），服务端长期记住
+    async function switchRole(role) {
+        const btn = document.querySelector(`.role-btn[data-role="${role}"]`);
+        if (!btn || btn.disabled) return;
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/ai/role', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: getVisitorId(), role })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || '切换失败');
+            setRoleUI(data.role);
+            localStorage.setItem('recipe_role', data.role);
+        } catch (e) {
+            alert('切换失败：' + (e.message || '网络错误'));
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // 页面加载：与服务端同步当前身份（多设备一致）
+    (async function syncRoleOnLoad() {
+        try {
+            const res = await fetch('/api/ai/role/' + encodeURIComponent(getVisitorId()));
+            const data = await res.json();
+            if (res.ok && data.role) {
+                setRoleUI(data.role);
+                localStorage.setItem('recipe_role', data.role);
+            }
+        } catch (e) { /* 服务暂不可用就保持默认 */ }
+    })();
 
     // 身份 → 头像/名字
     function roleMeta(role) {
@@ -480,6 +566,7 @@
         const meta = roleMeta(role || 'chef');
         card.querySelector('.bot-avatar').textContent = meta.avatar;
         card.querySelector('.bot-name').textContent = meta.name;
+        setRoleUI(role || 'chef');  // 对话中自动切换身份时，同步按钮高亮
         card.querySelector('.status-tag').className = 'status-tag';
         card.querySelector('.status-tag').textContent = '✓ 已找到';
 
