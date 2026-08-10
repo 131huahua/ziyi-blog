@@ -299,28 +299,58 @@
     <!-- Tab 4：AI 助手 -->
     <div id="tab-ai" class="tab-content hidden">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 状态 + 重建 + 测试 -->
             <div class="admin-panel p-6">
                 <h3 class="text-sm font-bold text-gray-900 mb-1">🍳 食谱 AI 助手</h3>
-                <p class="text-xs text-gray-400 mb-4 leading-relaxed">LangChain RAG：把 <code class="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded">recipes/</code> 目录下的食谱 Markdown 向量化，访客在食谱页提问时检索回答。<br>新增/修改食谱后点下面的按钮重建索引。</p>
+                <p class="text-xs text-gray-400 mb-4 leading-relaxed">LangChain RAG：文档入库后自动切块向量化，访客在食谱页提问时检索回答。</p>
                 <div class="flex items-center gap-2 mb-4">
                     <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.configured else 'bg-amber-50 text-amber-700' }}">{{ '● AI 已配置' if ai_status.configured else '● AI 未配置（.env 缺 Key）' }}</span>
                     <span class="text-[11px] px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700' if ai_status.index_exists else 'bg-gray-100 text-gray-500' }}">{{ '● 索引已建立' if ai_status.index_exists else '● 索引未建立' }}</span>
+                    <span id="aiDocCount" class="text-[11px] px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">● 文档 …</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="rebuildIndex(this)" class="admin-btn-primary px-6">🔄 重建食谱索引</button>
+                <div class="flex items-center gap-3 mb-4">
+                    <button onclick="rebuildIndex(this)" class="admin-btn-primary px-6">🔄 重建索引</button>
                     <a href="/recipes" target="_blank" class="text-xs text-emerald-700 hover:underline">查看食谱页 →</a>
                 </div>
-                <p id="aiIndexMsg" class="text-xs mt-3 text-gray-400"></p>
+                <p id="aiIndexMsg" class="text-xs mb-4 text-gray-400"></p>
+                <!-- 快速测试 -->
+                <label class="admin-label mb-1">🧪 快速测试问答</label>
+                <div class="flex items-center gap-2">
+                    <input id="aiTestQ" type="text" placeholder="比如：哈尔滨红肠怎么做？" class="admin-input flex-1">
+                    <button onclick="testAsk()" class="admin-btn-primary px-4 shrink-0">提问</button>
+                </div>
+                <pre id="aiTestR" class="mt-3 hidden text-[11px] bg-gray-900 text-emerald-300 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-64"></pre>
             </div>
+
+            <!-- 上传文档 -->
             <div class="admin-panel p-6">
+                <h3 class="text-sm font-bold text-gray-900 mb-1">📤 上传文档入库</h3>
+                <p class="text-xs text-gray-400 mb-3 leading-relaxed">支持 <b>PDF / Word(docx) / Markdown / TXT</b>，自动拆解成向量（上限 20MB）。扫描版 PDF（纯图片）无法提取文字。</p>
+                <div class="flex flex-col gap-3">
+                    <input id="aiDocFile" type="file" accept=".pdf,.docx,.md,.markdown,.txt"
+                           class="text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-50 file:text-emerald-800 file:text-xs file:font-medium hover:file:bg-emerald-100 transition">
+                    <div class="flex items-center gap-3">
+                        <button onclick="uploadDoc()" id="aiUploadBtn" class="admin-btn-primary px-6">🚀 上传并入库</button>
+                        <span id="aiUploadMsg" class="text-xs text-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已入库文档列表 -->
+            <div class="admin-panel p-6 md:col-span-2">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-gray-900">📚 已入库文档（<span id="aiDocTotal">0</span>）</h3>
+                    <button onclick="loadDocs()" class="text-xs text-emerald-700 hover:underline">↻ 刷新</button>
+                </div>
+                <div id="aiDocList" class="space-y-2">
+                    <p class="text-xs text-gray-400 py-4 text-center">加载中…</p>
+                </div>
+            </div>
+
+            <!-- 文章 AI 编辑说明 -->
+            <div class="admin-panel p-6 md:col-span-2">
                 <h3 class="text-sm font-bold text-gray-900 mb-1">✨ 文章 AI 编辑</h3>
-                <p class="text-xs text-gray-400 leading-relaxed mb-4">在「写文章/编辑文章」页面的正文工具栏，选中文字后可一键 <b>润色 / 扩写 / 精简 / 起标题</b>，AI 修改后直接替换到编辑器，人工确认后再保存。</p>
-                <ul class="text-xs text-gray-500 space-y-1.5">
-                    <li>1️⃣ 打开「＋ 写文章」或编辑已有文章</li>
-                    <li>2️⃣ 选中想修改的段落（不选则处理全文）</li>
-                    <li>3️⃣ 点击 ✨润色 / 📝扩写 / ✂️精简 / 🏷起标题</li>
-                    <li>4️⃣ 检查 AI 结果，手动保存发布</li>
-                </ul>
+                <p class="text-xs text-gray-400 leading-relaxed">在「写文章/编辑文章」页面的正文工具栏，选中文字后可一键 <b>润色 / 扩写 / 精简 / 起标题</b>，AI 修改后直接替换到编辑器，人工确认后再保存。</p>
             </div>
         </div>
     </div>
@@ -342,12 +372,120 @@
             const res = await fetch('/api/ai/ingest', { method: 'POST' });
             const data = await res.json();
             msg.textContent = res.ok ? '✅ ' + (data.message || '重建完成') : '❌ ' + (data.detail || '失败');
+            if (res.ok) loadDocs();
         } catch (e) {
             msg.textContent = '❌ 网络错误';
         } finally {
             btn.disabled = false;
         }
     }
+
+    // 上传文档入库
+    async function uploadDoc() {
+        const input = document.getElementById('aiDocFile');
+        const msg = document.getElementById('aiUploadMsg');
+        const btn = document.getElementById('aiUploadBtn');
+        const file = input.files[0];
+        if (!file) { msg.textContent = '请先选择文件'; return; }
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['pdf', 'docx', 'md', 'markdown', 'txt'].includes(ext)) {
+            msg.textContent = '❌ 不支持的类型，仅 pdf/docx/md/txt';
+            return;
+        }
+        btn.disabled = true;
+        msg.textContent = '⏳ 上传并解析中…';
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const res = await fetch('/api/ai/upload', { method: 'POST', body: fd });
+            const data = await res.json();
+            msg.textContent = res.ok ? '✅ ' + (data.message || '入库成功') : '❌ ' + (data.detail || '失败');
+            if (res.ok) { input.value = ''; loadDocs(); }
+        } catch (e) {
+            msg.textContent = '❌ 网络错误';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // 文档列表
+    async function loadDocs() {
+        try {
+            const res = await fetch('/api/ai/docs');
+            const data = await res.json();
+            if (!res.ok) return;
+            const total = document.getElementById('aiDocTotal');
+            const count = document.getElementById('aiDocCount');
+            if (total) total.textContent = data.total;
+            if (count) count.textContent = '● 文档 ' + data.total;
+            const box = document.getElementById('aiDocList');
+            if (!box) return;
+            if (!data.docs.length) {
+                box.innerHTML = '<p class="text-xs text-gray-400 py-4 text-center">食谱库还是空的，上传第一个文档吧 📄</p>';
+                return;
+            }
+            box.innerHTML = data.docs.map(d => {
+                const size = d.size > 1024 ? (d.size / 1024).toFixed(1) + ' KB' : d.size + ' B';
+                const tag = d.is_upload
+                    ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">📤 上传</span>'
+                    : '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-200 text-gray-600">📦 仓库</span>';
+                const delBtn = d.is_upload
+                    ? `<button onclick="deleteDoc('${d.path}')" class="text-[11px] px-3 py-1 rounded-full bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition shrink-0">🗑 删除</button>`
+                    : '';
+                return `<div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <div class="flex items-center space-x-2.5 min-w-0">
+                        ${tag}
+                        <span class="text-xs font-medium text-gray-800 truncate">${d.name}</span>
+                        <span class="text-[10px] text-gray-400 font-mono shrink-0">${size}</span>
+                    </div>
+                    ${delBtn}
+                </div>`;
+            }).join('');
+        } catch (e) { /* 忽略 */ }
+    }
+
+    // 删除文档
+    async function deleteDoc(path) {
+        if (!confirm('确认删除「' + path + '」并从索引移除？')) return;
+        try {
+            const res = await fetch('/api/ai/doc/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path })
+            });
+            const data = await res.json();
+            alert(res.ok ? '✅ ' + (data.message || '已删除') : '❌ ' + (data.detail || '删除失败'));
+            if (res.ok) loadDocs();
+        } catch (e) {
+            alert('❌ 网络错误');
+        }
+    }
+
+    // 快速测试问答
+    async function testAsk() {
+        const q = document.getElementById('aiTestQ').value.trim();
+        const box = document.getElementById('aiTestR');
+        if (!q) return;
+        box.classList.remove('hidden');
+        box.textContent = '⏳ 思考中…';
+        try {
+            const res = await fetch('/api/ai/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: q })
+            });
+            const data = await res.json();
+            box.textContent = res.ok ? JSON.stringify(data.answer, null, 2) : '❌ ' + (data.detail || '失败');
+        } catch (e) {
+            box.textContent = '❌ 网络错误';
+        }
+    }
+
+    // 切到 AI Tab 时加载文档列表
+    document.addEventListener('DOMContentLoaded', () => {
+        const aiTab = document.getElementById('tab-btn-ai');
+        if (aiTab) aiTab.addEventListener('click', loadDocs);
+    });
     // 复制文件直链
     function copyFileUrl(path) {
         const fullUrl = window.location.origin + path;

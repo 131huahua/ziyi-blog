@@ -703,3 +703,56 @@ def ai_ingest(request: Request):
         raise HTTPException(status_code=403, detail="请先登录后台")
     from ai_recipe import rag
     return rag.rebuild()
+
+
+@app.post("/api/ai/upload")
+def ai_upload(request: Request, file: UploadFile = File(...)):
+    """上传文档到食谱库（PDF/docx/txt/md，自动解析向量化，需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import rag
+
+    data = file.file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="文件超过 20MB 限制")
+    try:
+        md_text = rag.parse_upload_to_markdown(file.filename or "", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # PDF 损坏 / 扫描件等解析失败：友好提示而不是 500
+        raise HTTPException(status_code=400, detail=f"文档解析失败（{type(e).__name__}），PDF 可能是扫描件或已损坏")
+    if not md_text:
+        raise HTTPException(status_code=400, detail="文档解析后没有内容（PDF 可能是扫描件/图片）")
+
+    # 同名覆盖：先删旧文件，再写新文件
+    name = Path(file.filename or "未命名.md").stem
+    rag.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    target = rag.UPLOAD_DIR / f"{name}.md"
+    target.write_text(md_text, encoding="utf-8")
+    rag.rebuild()
+    return {"status": "ok", "message": f"已上传 {file.filename}（{len(md_text)} 字符），索引已更新", "path": target.name}
+
+
+@app.get("/api/ai/docs")
+def ai_docs(request: Request):
+    """食谱库文档列表（需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import rag
+    return {"docs": rag.list_docs(), "total": len(rag.list_docs())}
+
+
+@app.post("/api/ai/doc/delete")
+def ai_doc_delete(request: Request, body: dict):
+    """删除上传的文档（需登录）"""
+    if not is_logged_in(request):
+        raise HTTPException(status_code=403, detail="请先登录后台")
+    from ai_recipe import rag
+    rel = (body or {}).get("path", "")
+    if not rel:
+        raise HTTPException(status_code=400, detail="缺少 path 参数")
+    try:
+        return rag.delete_doc(rel)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

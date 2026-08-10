@@ -10,11 +10,59 @@ logger = logging.getLogger("ai_recipe")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RECIPES_DIR = BASE_DIR / "recipes"
+UPLOAD_DIR = RECIPES_DIR / "上传文档"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
 _llm = None
 _vectorstore = None
 _last_error: str | None = None
+
+
+# ---------- 上传文档解析 ----------
+
+def parse_upload_to_markdown(filename: str, data: bytes) -> str:
+    """把上传的 PDF/docx/txt/md 解析成 Markdown 文本（供 RAG 入库）"""
+    import io
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(data))
+        pages = [(p.extract_text() or "") for p in reader.pages]
+        return "\n\n".join(pages).strip()
+    if ext == ".docx":
+        from docx import Document
+        doc = Document(io.BytesIO(data))
+        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        return "\n\n".join(lines)
+    if ext in (".md", ".markdown", ".txt"):
+        return data.decode("utf-8", errors="ignore").strip()
+    raise ValueError(f"不支持的文件类型 {ext}，仅支持 pdf / docx / md / txt")
+
+
+def list_docs() -> list[dict]:
+    """列出食谱库全部文档（含上传文档）"""
+    docs = []
+    for f in sorted(RECIPES_DIR.rglob("*.md")):
+        rel = f.relative_to(RECIPES_DIR).as_posix()
+        docs.append({
+            "path": rel,
+            "name": f.name,
+            "size": f.stat().st_size,
+            "is_upload": UPLOAD_DIR in f.parents,
+        })
+    return docs
+
+
+def delete_doc(rel_path: str) -> dict:
+    """删除食谱库文档（仅允许删除上传文档，防误删仓库文件）"""
+    target = (RECIPES_DIR / rel_path).resolve()
+    if not target.is_file() or not str(target).startswith(str(RECIPES_DIR.resolve())):
+        raise ValueError("文件不存在")
+    if not str(target).startswith(str(UPLOAD_DIR.resolve())):
+        raise ValueError("只能删除上传的文档")
+    target.unlink()
+    _get_vectorstore(force_rebuild=True)
+    return {"status": "ok", "message": f"已删除 {rel_path} 并重建索引"}
 
 
 def _get_llm():
