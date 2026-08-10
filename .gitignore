@@ -35,3 +35,7 @@ mc.js
 
 # AI 用量记录（限流）
 ai_quota.db
+
+memory.db
+memory.db-wal
+memory.db-shm
