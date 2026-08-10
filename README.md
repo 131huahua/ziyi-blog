@@ -105,6 +105,8 @@ uvicorn main:app --reload
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/ai/chat` | v2 多轮对话，body: `{"user_id", "question", "role?"}` |
+| POST | `/api/ai/role` | 切换身份：chef（厨师老王）/ nutritionist（营养师小林），长期生效 |
+| GET | `/api/ai/role/{user_id}` | 查询当前身份 |
 | POST | `/api/ai/ask` | v1 单轮问答（兼容） |
 | POST | `/api/ai/chat/clear` | 清空某访客对话历史 |
 | POST | `/api/ai/ingest` | 重建食谱索引（新增/修改 `recipes/` 后调用，需登录后台） |
