@@ -17,6 +17,7 @@ UPLOAD_DIR = RECIPES_DIR / "上传文档"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
 _llm = None
+_fallback_llm = None
 _vectorstore = None
 _last_error: str | None = None
 
@@ -84,11 +85,23 @@ def delete_doc(rel_path: str) -> dict:
 
 # ---------- 模型 ----------
 
-def _get_llm():
-    """对话模型（OpenAI 兼容）"""
-    global _llm
+def _get_llm(use_fallback: bool = False):
+    """对话模型（OpenAI 兼容）。use_fallback=True 返回备胎模型（如智谱免费 glm-4-flash）"""
     from langchain_openai import ChatOpenAI
     from .config import settings
+
+    global _llm, _fallback_llm
+    if use_fallback:
+        if _fallback_llm is None and settings.fallback_chat_api_key:
+            _fallback_llm = ChatOpenAI(
+                model=settings.fallback_chat_model,
+                api_key=settings.fallback_chat_api_key,
+                base_url=settings.fallback_chat_base_url,
+                temperature=settings.temperature,
+                max_tokens=settings.max_tokens,
+                timeout=60,
+            )
+        return _fallback_llm
 
     if _llm is None:
         _llm = ChatOpenAI(
@@ -237,9 +250,17 @@ def _is_recommend_question(question: str) -> bool:
 
 
 def _call_llm(messages: list) -> str:
-    """调用 LLM，返回文本"""
-    resp = _get_llm().invoke(messages)
-    return resp.content if hasattr(resp, "content") else str(resp)
+    """调用 LLM；主模型失败时自动切 fallback（如智谱免费额度）"""
+    try:
+        resp = _get_llm().invoke(messages)
+        return resp.content if hasattr(resp, "content") else str(resp)
+    except Exception as e:
+        fb = _get_llm(use_fallback=True)
+        if fb is None:
+            raise
+        logger.warning("主模型调用失败(%s)，切换到 fallback 模型", str(e)[:100])
+        resp = fb.invoke(messages)
+        return resp.content if hasattr(resp, "content") else str(resp)
 
 
 def chat(user_id: str, question: str, role: str | None = None) -> dict:

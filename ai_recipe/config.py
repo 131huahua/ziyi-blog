@@ -21,6 +21,11 @@ class Settings:
     temperature: float = float(os.getenv("TEMPERATURE", "0.4"))
     max_tokens: int = int(os.getenv("MAX_TOKENS", "2000"))
 
+    # 对话 fallback（主模型失败时自动切换，如智谱 glm-4-flash 免费额度）
+    fallback_chat_api_key: str = os.getenv("FALLBACK_CHAT_API_KEY", "")
+    fallback_chat_base_url: str = os.getenv("FALLBACK_CHAT_BASE_URL", "")
+    fallback_chat_model: str = os.getenv("FALLBACK_CHAT_MODEL", "")
+
     # 向量模型
     # EMBEDDING_PROVIDER=local → 本地 fastembed（离线免费，推荐）
     # EMBEDDING_PROVIDER=api   → 用下面的 API 配置
