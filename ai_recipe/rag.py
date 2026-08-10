@@ -106,7 +106,7 @@ def _get_embeddings():
     """向量模型：默认本地 fastembed（离线免费）；配了 EMBEDDING_API_KEY 才走 API"""
     from .config import settings
 
-    if settings.embedding_provider == "local" and not settings.embedding_api_key:
+    if settings.embedding_provider == "local":
         # 国内网络：默认走 hf-mirror 镜像下载模型；禁用 xet 协议（镜像不支持，会 401）
         os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
         os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
