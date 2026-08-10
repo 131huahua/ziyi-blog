@@ -76,7 +76,7 @@ def check_quota(ip: str, token: str) -> tuple[bool, str, int]:
     conn = _conn()
     if token and token in valid_tokens():
         n = conn.execute(
-            "SELECT COUNT(*) FROM ai_usage WHERE token=*** AND ts>?", (token, now - DAY_SECONDS)
+            "SELECT COUNT(*) FROM ai_usage WHERE token=? AND ts>?", (token, now - DAY_SECONDS)
         ).fetchone()[0]
         remain = max(TOKEN_PER_DAY - n, 0)
         if n >= TOKEN_PER_DAY:
