@@ -194,6 +194,23 @@ def _get_vectorstore(force_rebuild: bool = False):
 
 # ---------- v2 多轮对话 ----------
 
+def _sanitize_input(text: str) -> str:
+    """输入清洗：移除控制字符/零宽字符，防提示词注入变体和异常字符"""
+    if not text:
+        return ""
+    cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    cleaned = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2060\ufeff\u00ad]", "", cleaned)
+    return cleaned.strip()
+
+
+def _sanitize_user_id(user_id: str) -> str:
+    """user_id 白名单：仅字母/数字/下划线/连字符，最长 64，非法则回退 anonymous"""
+    uid = (user_id or "").strip()[:64]
+    if re.fullmatch(r"[A-Za-z0-9_\-]+", uid):
+        return uid
+    return "anonymous"
+
+
 def _detect_role(user_id: str, question: str) -> str:
     """根据用户消息自动切换身份（并写回画像）"""
     from .memory import get_profile, update_profile
@@ -281,6 +298,12 @@ def chat(user_id: str, question: str, role: str | None = None) -> dict:
         raise RuntimeError(_last_error)
 
     try:
+        # 输入清洗（防注入/防异常字符）
+        user_id = _sanitize_user_id(user_id)
+        question = _sanitize_input(question)
+        if not question:
+            raise RuntimeError("问题不能为空")
+
         profile = get_profile(user_id)
         if role is None:
             role = _detect_role(user_id, question)
@@ -347,7 +370,8 @@ def chat(user_id: str, question: str, role: str | None = None) -> dict:
 
         return {
             "answer": parsed,
-            "sources": sorted({d.metadata.get("source", "") for d in docs}),
+            # 来源脱敏：只返回文件名，不暴露服务器绝对路径
+            "sources": sorted({Path(d.metadata.get("source", "")).name for d in docs}),
             "role": role,
         }
     except Exception as e:
