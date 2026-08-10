@@ -90,6 +90,37 @@ uvicorn main:app --reload
 
 ---
 
+## 🤖 AI 食谱助手（v2：双身份 + 记忆 + 推荐 + 工具）
+
+食谱页 `/recipes` 的 AI 只回答做饭问题，v2 能力：
+
+- **双身份**：默认「厨师老王」；提到减脂/控糖/增肌自动切「营养师小林」（写入访客画像），说「切回厨师」恢复
+- **推荐模式**：问「吃什么/推荐」返回菜谱 + `why`（为什么推荐）+ `how`（怎么做省事）
+- **记忆**：SQLite 存用户画像（口味/忌口/健康目标自动学习）+ 最近 8 轮对话；按访客 id（前端 localStorage）隔离
+- **工具**：本地实现热量估算/时令食材/单位换算/营养建议（模型输出 tool_calls → 系统执行 → 再回答）
+- **本地向量**：默认 fastembed（bge-small-zh，离线免费，首次运行自动下载，国内走 hf-mirror）
+
+### AI 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/ai/chat` | v2 多轮对话，body: `{"user_id", "question", "role?"}` |
+| POST | `/api/ai/ask` | v1 单轮问答（兼容） |
+| POST | `/api/ai/chat/clear` | 清空某访客对话历史 |
+| POST | `/api/ai/ingest` | 重建食谱索引（新增/修改 `recipes/` 后调用，需登录后台） |
+| POST | `/api/ai/upload` | 上传 PDF/docx/txt/md 入库（需登录后台） |
+| POST | `/api/ai/rewrite` | 管理界面 AI 改文章（需登录后台） |
+| GET | `/api/ai/quota` | AI 用量统计（需登录后台） |
+
+### 部署注意
+
+1. **换 embedding 模型必须重建索引**：`curl -X POST https://你的域名/api/ai/ingest`（或后台按钮）。代码会自动检测 collection 缺失/维度不匹配
+2. 本地 embedding 模型首次运行自动下载（约 100MB）；服务器无外网或想离线，可先在本地跑一次再传 `~/.cache` 或设置 `HF_HOME`
+3. 记忆库默认 `memory.db`（自动创建），备份时一并备份；访客数据量很小，无需清理
+4. 微调可选：`ai_recipe/` 配套脚本 `scripts/build_finetune_data.py` + 教程见 repo 根目录 `finetune/README.md`（LLaMA-Factory + Qwen2.5 LoRA）
+
+---
+
 ## 🚀 生产部署
 
 ### 环境变量（`.env`）
@@ -153,6 +184,17 @@ ziyi-blog/
 ├── auth.py                    # 后台登录（sha256）
 ├── database.py                # SQLite / PostgreSQL 切换
 ├── seed.py                    # 演示数据
+├── ai_recipe/                 # 🤖 食谱 AI（v2：RAG + 双身份 + 记忆 + 工具）
+│   ├── rag.py                 # 多轮对话：检索→记忆→工具调度→推荐
+│   ├── prompt.py              # 提示词工程：厨师老王/营养师小林 + 拒答规则
+│   ├── memory.py              # SQLite 用户画像 + 对话历史
+│   ├── tools.py               # 本地工具：热量/时令/换算/营养
+│   ├── quota.py               # 接口防护：限流/来源校验/并发
+│   ├── rewrite.py             # 文章润色
+│   └── config.py              # 从 .env 读配置
+├── recipes/                   # 📚 食谱库（markdown，放文件后重建索引）
+├── chroma_db/                 # 向量库（自动生成）
+├── memory.db                  # 记忆库（自动生成）
 ├── templates/
 │   ├── base.html              # 基础模板（双模 + 防闪烁）
 │   ├── components/
